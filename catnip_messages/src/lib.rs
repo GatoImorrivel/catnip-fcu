@@ -7,6 +7,8 @@ use uuid::Uuid;
 #[macro_use]
 mod macros;
 
+pub mod push_events;
+
 /// Transport for host ↔ FCU messages.
 ///
 /// Request senders assign [`Uuid`]s; the receiver echoes the same `message_id` in replies.
