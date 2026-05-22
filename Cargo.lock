@@ -187,6 +187,7 @@ dependencies = [
 name = "catnip_messages"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "catnip_core",
  "postcard",
  "serde",

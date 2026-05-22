@@ -1,20 +1,29 @@
-use std::sync::mpsc::Sender;
+use std::fmt::Debug;
 
-use catnip_core::{Capabitilities, FireMode, FireModeConfigMap};
+use catnip_core::Characteristics;
 
-#[derive(Debug, Clone)]
-pub enum FCUToHostMessage {
-    FireModeChange(FireMode),
-    UnsupportedFiremode(Option<FireMode>)
+pub trait Transport {
+    fn try_receive(&mut self) -> Option<HostToFCURequest>;
+    fn reply<R: Debug + Clone>(&mut self, response: R) -> anyhow::Result<()>;
 }
 
-#[derive(Debug, Clone)]
-pub enum HostToFCUMessage {
-    GetCapabilities {
-        reply: Sender<Capabitilities>
-    },
-    GetFireModeConfig {
-        target_firemode: FireMode,
-        reply: Sender<FireModeConfigMap>
+pub trait Request {
+    type Reply: Debug + Clone;
+
+    fn reply(&self, reply: Self::Reply, transport: &mut impl Transport) -> anyhow::Result<()>;
+}
+
+pub struct GetCapabilitiesRequest;
+
+impl Request for GetCapabilitiesRequest {
+    type Reply = Characteristics;
+
+    fn reply(&self, reply: Self::Reply, transport: &mut impl Transport) -> anyhow::Result<()> {
+        transport.reply(reply)?;
+        Ok(())
     }
+}
+
+pub enum HostToFCURequest {
+    GetCapabilities(GetCapabilitiesRequest),
 }

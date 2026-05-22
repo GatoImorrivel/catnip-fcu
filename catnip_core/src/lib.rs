@@ -8,16 +8,32 @@ pub enum FireMode {
     Burst,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Capabitilities {
+#[derive(Debug, Clone)]
+pub struct Characteristics {
     pub num_fire_positions: u8,
-    pub num_solenoids: u8,
     pub supported_firemodes: [FireMode; 4],
+    pub name: String,
+    pub kind: FCUKind
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum FCUKind {
+    HPA {
+        num_solenoids: u8,
+    },
+    AEG
 }
 
 pub type FireModeConfigMap = HashMap<FireMode, Vec<FireModeConfigField>>;
-pub type FireModeConfigField = HashMap<&'static str, FireModeConfigType>;
+pub type FireModeConfigField = HashMap<String, FireModeConfigType>;
 pub type FireModeConfigFields = Vec<FireModeConfigField>;
+
+pub enum FireModeConfigTypeUnit {
+    Milliseconds,
+    Seconds,
+    Minutes,
+    Number
+}
 
 pub enum FireModeConfigType {
     Numeric {
@@ -25,18 +41,12 @@ pub enum FireModeConfigType {
         max: i32,
         current: i32,
         default: Option<i32>,
-    },
-    NonNegativeNumeric {
-        min: u32,
-        max: u32,
-        current: u32,
-        default: Option<u32>,
+        unit: FireModeConfigTypeUnit
     }
 }
 
 pub enum UpdateFireModeFieldValue {
     Numeric(i32),
-    NonNegativeNumeric(u32)
 }
 
 pub trait FireModeConfig {
@@ -45,7 +55,7 @@ pub trait FireModeConfig {
 }
 
 pub trait FCUConfig  {
-    fn capabilities(&self) -> Capabitilities;
+    fn characteristics(&self) -> Characteristics;
     fn get_current_firemode(&self) -> FireMode;
     fn set_firemode(&mut self, firemode: FireMode) -> anyhow::Result<()>;
     fn get_firemode_config(&self, firemode: FireMode) -> Option<FireModeConfigMap>;

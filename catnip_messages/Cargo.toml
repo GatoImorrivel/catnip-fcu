@@ -8,3 +8,4 @@ postcard = "1.1.3"
 serde = { version = "1.0.228", features = ["derive"] }
 catnip_core = {path = "../catnip_core"}
 thiserror = "2.0.18"
+anyhow = "1.0.100"
