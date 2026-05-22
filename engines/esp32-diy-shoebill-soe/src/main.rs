@@ -1,9 +1,9 @@
 use catnip_esp32::{
     Characteristics, ESP32FCU, FCUConfig, FCUKind, FireMode, FireModeConfigMap, FireSelector,
-    fire_selector::{ESP32FireSelector, FireSelectorPin},
+    fire_selector::{ActiveLevel, ESP32FireSelector, FireSelectorPin, Pull},
     server::ESP32FCUServer,
 };
-use esp_idf_svc::hal::{gpio::{AnyInputPin, InputPin}, peripherals::Peripherals};
+use esp_idf_svc::hal::{gpio::{AnyInputPin, AnyOutputPin, InputPin, OutputPin}, peripherals::Peripherals};
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
 
 fn main() -> anyhow::Result<()> {
@@ -15,16 +15,11 @@ fn main() -> anyhow::Result<()> {
 
     let fcu = ShoebillSOE {
         current_firemode: FireMode::Safe,
-        solenoid_pin: peripherals.pins.gpio2.downgrade_input(),
+        solenoid_pin: peripherals.pins.gpio25.downgrade_output(),
+        trigger_pin: peripherals.pins.gpio32.downgrade_input(),
         fire_selector: ESP32FireSelector::new([
-            FireSelectorPin::new(
-                peripherals.pins.gpio0,
-                catnip_esp32::fire_selector::ActiveLevel::Low,
-            )?,
-            FireSelectorPin::new(
-                peripherals.pins.gpio1,
-                catnip_esp32::fire_selector::ActiveLevel::Low,
-            )?,
+            FireSelectorPin::new(peripherals.pins.gpio16, ActiveLevel::Low, Pull::Up)?,
+            FireSelectorPin::new(peripherals.pins.gpio17, ActiveLevel::Low, Pull::Up)?,
         ]),
     };
 
@@ -38,7 +33,8 @@ fn main() -> anyhow::Result<()> {
 
 pub struct ShoebillSOE<'a> {
     current_firemode: FireMode,
-    solenoid_pin: AnyInputPin,
+    solenoid_pin: AnyOutputPin,
+    trigger_pin: AnyInputPin,
     fire_selector: catnip_esp32::fire_selector::ESP32FireSelector<'a>,
 }
 

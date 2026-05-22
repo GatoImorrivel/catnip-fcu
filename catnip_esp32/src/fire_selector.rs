@@ -1,4 +1,7 @@
-use esp_idf_svc::hal::gpio::{AnyInputPin, Input, InputPin, Level, PinDriver};
+use esp_idf_svc::hal::gpio::{AnyInputPin, Input, InputPin, Level, Pin, PinDriver};
+use esp_idf_svc::hal::sys::gpio_set_pull_mode;
+
+pub use esp_idf_svc::hal::gpio::Pull;
 
 /// GPIO level that counts as "selected" for a fire-selector bit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -14,7 +17,14 @@ pub struct FireSelectorPin<'d> {
 }
 
 impl<'d> FireSelectorPin<'d> {
-    pub fn new(pin: impl InputPin + 'd, active_level: ActiveLevel) -> anyhow::Result<Self> {
+    pub fn new(
+        pin: impl InputPin + 'd,
+        active_level: ActiveLevel,
+        pull: Pull,
+    ) -> anyhow::Result<Self> {
+        esp_idf_svc::hal::sys::esp!(unsafe {
+            gpio_set_pull_mode(pin.pin(), pull.into())
+        })?;
         let any = pin.downgrade_input();
         Ok(Self {
             pin: PinDriver::input(any)?,
