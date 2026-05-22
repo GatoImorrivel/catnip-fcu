@@ -1,0 +1,20 @@
+[package]
+name = "catnip_esp32"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+
+experimental = ["esp-idf-svc/experimental"]
+
+[dependencies]
+catnip_core = { path = "../catnip_core" }
+anyhow = "1.0.100"
+log = "0.4"
+esp-idf-svc = { version = "0.51", features = [
+  "std",
+  "experimental",
+  "alloc",
+  "default",
+] }

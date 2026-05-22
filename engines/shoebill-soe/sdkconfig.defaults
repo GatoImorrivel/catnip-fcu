@@ -1,0 +1,31 @@
+# Rust often needs a larger main task stack
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=16000
+
+# Optional: 1ms FreeRTOS timing
+CONFIG_FREERTOS_HZ=1000
+
+# Target
+CONFIG_IDF_TARGET="esp32"
+
+# CPU frequency
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# Enable Bluetooth
+CONFIG_BT_ENABLED=y
+
+# Enable NimBLE (recommended)
+CONFIG_BT_NIMBLE_ENABLED=y
+
+# Disable Bluedroid to save memory
+CONFIG_BT_BLUEDROID_ENABLED=n
+
+# NimBLE role support
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+
+# Optional: increase BLE MTU
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=256
+
+# Optional: more heap debugging
+CONFIG_HEAP_POISONING_LIGHT=y
+CONFIG_HEAP_TRACING_OFF=y

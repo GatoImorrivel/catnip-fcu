@@ -1,0 +1,4 @@
+[workspace]
+members = ["catnip_core", "catnip_esp32", "catnip_messages", "engines/shoebill-soe"]
+
+resolver = "3"

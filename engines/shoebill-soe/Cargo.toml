@@ -1,0 +1,30 @@
+[package]
+name = "shoebill-soe"
+version = "0.1.0"
+authors = ["GatoImorrivel <guilhermevianagui23@gmail.com>"]
+edition = "2021"
+resolver = "2"
+rust-version = "1.77"
+
+[[bin]]
+name = "shoebill-soe"
+harness = false  # do not use the built-in cargo test harness -> resolve rust-analyzer errors
+
+[features]
+default = []
+
+experimental = ["esp-idf-svc/experimental"]
+
+[dependencies]
+log = "0.4"
+esp-idf-svc = { version = "0.51", features = [
+  "std",
+  "experimental",
+  "alloc",
+  "default",
+] }
+anyhow = "1.0.100"
+catnip_esp32 = { path = "../../catnip_esp32" }
+
+[build-dependencies]
+embuild = "0.33"
