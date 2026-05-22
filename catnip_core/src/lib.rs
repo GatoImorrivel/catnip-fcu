@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum FireMode {
     Safe,
     FullAuto,
@@ -8,7 +8,7 @@ pub enum FireMode {
     Burst,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Characteristics {
     pub num_fire_positions: u8,
     pub supported_firemodes: [FireMode; 4],
@@ -16,7 +16,7 @@ pub struct Characteristics {
     pub kind: FCUKind
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub enum FCUKind {
     HPA {
         num_solenoids: u8,
@@ -28,6 +28,7 @@ pub type FireModeConfigMap = HashMap<FireMode, Vec<FireModeConfigField>>;
 pub type FireModeConfigField = HashMap<String, FireModeConfigType>;
 pub type FireModeConfigFields = Vec<FireModeConfigField>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum FireModeConfigTypeUnit {
     Milliseconds,
     Seconds,
@@ -35,6 +36,7 @@ pub enum FireModeConfigTypeUnit {
     Number
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum FireModeConfigType {
     Numeric {
         min: i32,

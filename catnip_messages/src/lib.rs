@@ -1,29 +1,38 @@
 use std::fmt::Debug;
 
-use catnip_core::Characteristics;
+use catnip_core::{Characteristics, FireMode, FireModeConfigFields};
+use serde::{de::DeserializeOwned, Serialize};
+use uuid::Uuid;
 
+#[macro_use]
+mod macros;
+
+/// Transport for host ↔ FCU messages.
+///
+/// Request senders assign [`Uuid`]s; the receiver echoes the same `message_id` in replies.
 pub trait Transport {
     fn try_receive(&mut self) -> Option<HostToFCURequest>;
-    fn reply<R: Debug + Clone>(&mut self, response: R) -> anyhow::Result<()>;
+    /// Send a reply correlated to the originating request via `message_id`.
+    fn reply<R: Debug + Clone + Serialize>(&mut self, message_id: Uuid, response: R) -> anyhow::Result<()>;
+    fn emit<E: Serialize>(&mut self, event: E) -> anyhow::Result<()>;
 }
 
-pub trait Request {
-    type Reply: Debug + Clone;
+/// A request that can be answered through a [`Transport`].
+///
+/// Each request carries a `message_id` set by whoever sends it; the FCU must echo that
+/// id when calling [`Request::reply`].
+pub trait Request: DeserializeOwned {
+    type Reply: Debug + Clone + Serialize;
 
     fn reply(&self, reply: Self::Reply, transport: &mut impl Transport) -> anyhow::Result<()>;
 }
 
-pub struct GetCapabilitiesRequest;
-
-impl Request for GetCapabilitiesRequest {
-    type Reply = Characteristics;
-
-    fn reply(&self, reply: Self::Reply, transport: &mut impl Transport) -> anyhow::Result<()> {
-        transport.reply(reply)?;
-        Ok(())
+define_requests! {
+    requests HostToFCURequest,
+    responses HostToFCUResponse,
+    {
+        GetCapabilities => Characteristics,
+        GetFireModeConfig {firemode: FireMode} => FireModeConfigFields,
+        GetCurrentFireMode => FireMode,
     }
-}
-
-pub enum HostToFCURequest {
-    GetCapabilities(GetCapabilitiesRequest),
 }
