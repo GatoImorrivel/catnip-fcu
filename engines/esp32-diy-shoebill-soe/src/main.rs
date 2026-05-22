@@ -1,24 +1,35 @@
 use catnip_esp32::{
-    Capabitilities, ESP32FCU, FCUConfig, FireMode, FireModeConfigMap, fire_selector::{FireSelector, FireSelectorPin}, server::ESP32FCUServer
+    Characteristics, ESP32FCU, FCUConfig, FCUKind, FireMode, FireModeConfigMap, FireSelector,
+    fire_selector::{ESP32FireSelector, FireSelectorPin},
+    server::ESP32FCUServer,
 };
 use esp_idf_svc::hal::{gpio::{AnyInputPin, InputPin}, peripherals::Peripherals};
+use esp_idf_svc::nvs::EspDefaultNvsPartition;
 
 fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
 
     let peripherals = Peripherals::take()?;
+    let nvs = EspDefaultNvsPartition::take()?;
 
     let fcu = ShoebillSOE {
         current_firemode: FireMode::Safe,
         solenoid_pin: peripherals.pins.gpio2.downgrade_input(),
-        fire_selector: FireSelector::new([
-            FireSelectorPin::new(peripherals.pins.gpio0, catnip_esp32::fire_selector::ActiveLevel::Low)?,
-            FireSelectorPin::new(peripherals.pins.gpio1, catnip_esp32::fire_selector::ActiveLevel::Low)?
-        ])
+        fire_selector: ESP32FireSelector::new([
+            FireSelectorPin::new(
+                peripherals.pins.gpio0,
+                catnip_esp32::fire_selector::ActiveLevel::Low,
+            )?,
+            FireSelectorPin::new(
+                peripherals.pins.gpio1,
+                catnip_esp32::fire_selector::ActiveLevel::Low,
+            )?,
+        ]),
     };
 
-    let server: ESP32FCUServer<ShoebillSOE> = ESP32FCUServer::new(fcu);
+    let modem = peripherals.modem;
+    let server = ESP32FCUServer::new(fcu, modem, nvs)?;
 
     server.run();
 
@@ -28,20 +39,21 @@ fn main() -> anyhow::Result<()> {
 pub struct ShoebillSOE<'a> {
     current_firemode: FireMode,
     solenoid_pin: AnyInputPin,
-    fire_selector: catnip_esp32::fire_selector::FireSelector<'a>,
+    fire_selector: catnip_esp32::fire_selector::ESP32FireSelector<'a>,
 }
 
 impl FCUConfig for ShoebillSOE<'_> {
-    fn capabilities(&self) -> Capabitilities {
-        Capabitilities {
-            num_fire_positions: 4,
-            num_solenoids: 1,
+    fn characteristics(&self) -> Characteristics {
+        Characteristics {
+            num_fire_positions: self.fire_selector.position_count() as u8,
             supported_firemodes: [
                 FireMode::Burst,
                 FireMode::FullAuto,
                 FireMode::Safe,
                 FireMode::SemiAuto,
             ],
+            name: "Shoebill diy".into(),
+            kind: FCUKind::HPA { num_solenoids: 1 },
         }
     }
 

@@ -32,11 +32,11 @@ impl<'d> FireSelectorPin<'d> {
 }
 
 /// Reads a bank of GPIO inputs and encodes active pins as an integer (bit *i* = pin *i*).
-pub struct FireSelector<'d> {
+pub struct ESP32FireSelector<'d> {
     pins: Vec<FireSelectorPin<'d>>,
 }
 
-impl<'d> catnip_core::FireSelector for FireSelector<'d> {
+impl<'d> catnip_core::FireSelector for ESP32FireSelector<'d> {
     fn read(&self) -> u32 {
         let mut value = 0u32;
         for (i, pin) in self.pins.iter().enumerate() {
@@ -52,7 +52,7 @@ impl<'d> catnip_core::FireSelector for FireSelector<'d> {
     }
 }
 
-impl<'d> FireSelector<'d> {
+impl<'d> ESP32FireSelector<'d> {
     pub fn new(pins: impl IntoIterator<Item = FireSelectorPin<'d>>) -> Self {
         Self {
             pins: pins.into_iter().collect(),
