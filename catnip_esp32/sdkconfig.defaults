@@ -1,0 +1,12 @@
+# Rust often needs a larger main task stack
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=16000
+
+# Optional: 1ms FreeRTOS timing
+CONFIG_FREERTOS_HZ=1000
+
+# CPU frequency
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# Optional: more heap debugging
+CONFIG_HEAP_POISONING_LIGHT=y
+CONFIG_HEAP_TRACING_OFF=y

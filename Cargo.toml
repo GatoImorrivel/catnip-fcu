@@ -1,4 +1,6 @@
 [workspace]
-members = ["catnip_core", "catnip_esp32", "catnip_messages", "engines/shoebill-soe"]
+members = ["catnip_core", "catnip_esp32", "catnip_messages"]
+default-members = ["catnip_core", "catnip_messages"]
+exclude = ["engines/esp32-diy-shoebill-soe"]
 
 resolver = "3"

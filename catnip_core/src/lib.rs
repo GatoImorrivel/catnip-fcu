@@ -48,10 +48,11 @@ pub trait FCUConfig  {
     fn capabilities(&self) -> Capabitilities;
     fn get_current_firemode(&self) -> FireMode;
     fn set_firemode(&mut self, firemode: FireMode) -> anyhow::Result<()>;
-    fn get_firemode_config(&self, firemode: FireMode) -> anyhow::Result<FireModeConfigMap>;
+    fn get_firemode_config(&self, firemode: FireMode) -> Option<FireModeConfigMap>;
 }
 
 pub trait FireSelector {
     /// Current selector value: bit *i* is set when position *i* is active.
     fn read(&self) -> u32;
+    fn position_count(&self) -> usize;
 }

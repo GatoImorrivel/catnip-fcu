@@ -5,8 +5,11 @@ edition = "2024"
 
 [features]
 default = []
-
+bt = []
 experimental = ["esp-idf-svc/experimental"]
+
+[package.metadata.esp-idf-sys]
+mcu = "esp32"
 
 [dependencies]
 catnip_core = { path = "../catnip_core" }
@@ -19,3 +22,6 @@ esp-idf-svc = { version = "0.51", features = [
   "alloc",
   "default",
 ] }
+
+[build-dependencies]
+embuild = "0.33"

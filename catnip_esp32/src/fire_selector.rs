@@ -7,31 +7,6 @@ pub enum ActiveLevel {
     High,
 }
 
-/// Per-pin active levels. Must match the pin count passed to [`FireSelector::new`].
-#[derive(Debug, Clone)]
-pub struct FireSelectorConfig {
-    active_levels: Vec<ActiveLevel>,
-}
-
-impl FireSelectorConfig {
-    pub fn new(active_levels: impl Into<Vec<ActiveLevel>>) -> Self {
-        Self {
-            active_levels: active_levels.into(),
-        }
-    }
-
-    /// Same active level for every pin.
-    pub fn uniform(active_level: ActiveLevel, pin_count: usize) -> Self {
-        Self {
-            active_levels: vec![active_level; pin_count],
-        }
-    }
-
-    pub fn active_levels(&self) -> &[ActiveLevel] {
-        &self.active_levels
-    }
-}
-
 /// One fire-selector input and the GPIO level that counts as active.
 pub struct FireSelectorPin<'d> {
     pin: PinDriver<'d, AnyInputPin, Input>,
@@ -71,34 +46,17 @@ impl<'d> catnip_core::FireSelector for FireSelector<'d> {
         }
         value
     }
+
+    fn position_count(&self) -> usize {
+        self.pin_count().pow(2)
+    }
 }
 
 impl<'d> FireSelector<'d> {
-    pub fn new(
-        pins: impl IntoIterator<Item = impl InputPin + 'd>,
-        config: FireSelectorConfig,
-    ) -> anyhow::Result<Self> {
-        let active_levels = config.active_levels;
-        let mut selector_pins = Vec::new();
-
-        for (i, pin) in pins.into_iter().enumerate() {
-            let active_level = active_levels.get(i).copied().ok_or_else(|| {
-                anyhow::anyhow!("fire selector: {} pins but {} active-level entries", i + 1, active_levels.len())
-            })?;
-            selector_pins.push(FireSelectorPin::new(pin, active_level)?);
+    pub fn new(pins: impl IntoIterator<Item = FireSelectorPin<'d>>) -> Self {
+        Self {
+            pins: pins.into_iter().collect(),
         }
-
-        if selector_pins.len() != active_levels.len() {
-            anyhow::bail!(
-                "fire selector: {} pins but {} active-level entries",
-                selector_pins.len(),
-                active_levels.len()
-            );
-        }
-
-        Ok(Self {
-            pins: selector_pins,
-        })
     }
 
     pub fn pin_count(&self) -> usize {
