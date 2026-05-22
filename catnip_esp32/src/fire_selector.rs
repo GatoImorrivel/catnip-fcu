@@ -1,4 +1,5 @@
 use esp_idf_svc::hal::gpio::{AnyInputPin, Input, InputPin, Level, PinDriver};
+
 /// GPIO level that counts as "selected" for a fire-selector bit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveLevel {
@@ -31,10 +32,45 @@ impl FireSelectorConfig {
     }
 }
 
+/// One fire-selector input and the GPIO level that counts as active.
+pub struct FireSelectorPin<'d> {
+    pin: PinDriver<'d, AnyInputPin, Input>,
+    active_level: ActiveLevel,
+}
+
+impl<'d> FireSelectorPin<'d> {
+    pub fn new(pin: impl InputPin + 'd, active_level: ActiveLevel) -> anyhow::Result<Self> {
+        let any = pin.downgrade_input();
+        Ok(Self {
+            pin: PinDriver::input(any)?,
+            active_level,
+        })
+    }
+
+    pub fn active_level(&self) -> ActiveLevel {
+        self.active_level
+    }
+
+    fn is_active(&self) -> bool {
+        is_active(self.pin.get_level(), self.active_level)
+    }
+}
+
 /// Reads a bank of GPIO inputs and encodes active pins as an integer (bit *i* = pin *i*).
 pub struct FireSelector<'d> {
-    pins: Vec<PinDriver<'d, AnyInputPin, Input>>,
-    config: FireSelectorConfig,
+    pins: Vec<FireSelectorPin<'d>>,
+}
+
+impl<'d> catnip_core::FireSelector for FireSelector<'d> {
+    fn read(&self) -> u32 {
+        let mut value = 0u32;
+        for (i, pin) in self.pins.iter().enumerate() {
+            if pin.is_active() {
+                value |= 1 << i;
+            }
+        }
+        value
+    }
 }
 
 impl<'d> FireSelector<'d> {
@@ -42,35 +78,27 @@ impl<'d> FireSelector<'d> {
         pins: impl IntoIterator<Item = impl InputPin + 'd>,
         config: FireSelectorConfig,
     ) -> anyhow::Result<Self> {
-        let mut drivers = Vec::new();
-        for pin in pins {
-            let any = pin.downgrade_input();
-            drivers.push(PinDriver::input(any)?);
+        let active_levels = config.active_levels;
+        let mut selector_pins = Vec::new();
+
+        for (i, pin) in pins.into_iter().enumerate() {
+            let active_level = active_levels.get(i).copied().ok_or_else(|| {
+                anyhow::anyhow!("fire selector: {} pins but {} active-level entries", i + 1, active_levels.len())
+            })?;
+            selector_pins.push(FireSelectorPin::new(pin, active_level)?);
         }
 
-        if drivers.len() != config.active_levels.len() {
+        if selector_pins.len() != active_levels.len() {
             anyhow::bail!(
                 "fire selector: {} pins but {} active-level entries",
-                drivers.len(),
-                config.active_levels.len()
+                selector_pins.len(),
+                active_levels.len()
             );
         }
 
         Ok(Self {
-            pins: drivers,
-            config,
+            pins: selector_pins,
         })
-    }
-
-    /// Current selector value: bit *i* is set when pin *i* is active per config.
-    pub fn read(&self) -> u32 {
-        let mut value = 0u32;
-        for (i, pin) in self.pins.iter().enumerate() {
-            if is_active(pin.get_level(), self.config.active_levels[i]) {
-                value |= 1 << i;
-            }
-        }
-        value
     }
 
     pub fn pin_count(&self) -> usize {

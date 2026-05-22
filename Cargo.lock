@@ -177,6 +177,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "catnip_core",
+ "catnip_messages",
  "esp-idf-svc",
  "log",
 ]
@@ -185,8 +186,10 @@ dependencies = [
 name = "catnip_messages"
 version = "0.1.0"
 dependencies = [
+ "catnip_core",
  "postcard",
  "serde",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

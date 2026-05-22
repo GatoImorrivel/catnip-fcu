@@ -10,6 +10,7 @@ experimental = ["esp-idf-svc/experimental"]
 
 [dependencies]
 catnip_core = { path = "../catnip_core" }
+catnip_messages = { path = "../catnip_messages" }
 anyhow = "1.0.100"
 log = "0.4"
 esp-idf-svc = { version = "0.51", features = [

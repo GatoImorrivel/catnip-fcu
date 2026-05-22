@@ -8,6 +8,7 @@ pub enum FireMode {
     Burst,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Capabitilities {
     pub num_fire_positions: u8,
     pub num_solenoids: u8,
@@ -16,6 +17,7 @@ pub struct Capabitilities {
 
 pub type FireModeConfigMap = HashMap<FireMode, Vec<FireModeConfigField>>;
 pub type FireModeConfigField = HashMap<&'static str, FireModeConfigType>;
+pub type FireModeConfigFields = Vec<FireModeConfigField>;
 
 pub enum FireModeConfigType {
     Numeric {
@@ -47,4 +49,9 @@ pub trait FCUConfig  {
     fn get_current_firemode(&self) -> FireMode;
     fn set_firemode(&mut self, firemode: FireMode) -> anyhow::Result<()>;
     fn get_firemode_config(&self, firemode: FireMode) -> anyhow::Result<FireModeConfigMap>;
+}
+
+pub trait FireSelector {
+    /// Current selector value: bit *i* is set when position *i* is active.
+    fn read(&self) -> u32;
 }
