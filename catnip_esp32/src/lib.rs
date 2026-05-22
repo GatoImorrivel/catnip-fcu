@@ -4,17 +4,11 @@ pub mod server;
 
 #[cfg(all(
     feature = "bt",
-    esp_idf_bt_enabled,
-    esp_idf_bt_bluedroid_enabled,
-    not(esp32s2)
 ))]
 mod bt_transport;
 
 #[cfg(all(
     feature = "bt",
-    esp_idf_bt_enabled,
-    esp_idf_bt_bluedroid_enabled,
-    not(esp32s2)
 ))]
 pub use bt_transport::{
     BluetoothTransport, BluetoothTransportConfig, CATNIP_FCU_ADV_MAGIC,

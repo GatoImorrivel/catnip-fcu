@@ -173,6 +173,9 @@ struct BleState {
     recv_buffer: Vec<u8>,
     device_name: String,
     manufacturer_data: Vec<u8>,
+    adv_configured: bool,
+    scan_rsp_configured: bool,
+    advertising_started: bool,
 }
 
 struct BleGattServer {
@@ -226,8 +229,32 @@ impl BleGattServer {
     }
 
     fn on_gap_event(&self, event: BleGapEvent) -> Result<(), EspError> {
-        if let BleGapEvent::AdvertisingConfigured(status) = event {
-            self.check_bt_status(status)?;
+        match event {
+            BleGapEvent::AdvertisingConfigured(status) => {
+                self.check_bt_status(status)?;
+                self.state.lock().unwrap().adv_configured = true;
+                self.maybe_start_advertising()?;
+            }
+            BleGapEvent::ScanResponseConfigured(status) => {
+                self.check_bt_status(status)?;
+                self.state.lock().unwrap().scan_rsp_configured = true;
+                self.maybe_start_advertising()?;
+            }
+            _ => (),
+        }
+
+        Ok(())
+    }
+
+    fn maybe_start_advertising(&self) -> Result<(), EspError> {
+        let mut state = self.state.lock().unwrap();
+
+        if state.adv_configured
+            && state.scan_rsp_configured
+            && !state.advertising_started
+        {
+            state.advertising_started = true;
+            drop(state);
             self.gap.start_advertising()?;
         }
 
@@ -310,16 +337,25 @@ impl BleGattServer {
 
         self.gap.set_device_name(&state.device_name)?;
 
+        // Legacy ADV packets are capped at 31 bytes. Keep discovery fields here;
+        // put the device name and TX power in the scan response packet.
         let adv = AdvConfiguration {
-            include_name: true,
-            include_txpower: true,
+            include_name: false,
+            include_txpower: false,
             flag: 2,
             service_uuid: Some(BtUuid::uuid128(CATNIP_FCU_SERVICE_UUID)),
             manufacturer_data: Some(&state.manufacturer_data),
             ..Default::default()
         };
-
         self.gap.set_adv_conf(&adv)?;
+
+        let scan_rsp = AdvConfiguration {
+            set_scan_rsp: true,
+            include_name: true,
+            include_txpower: true,
+            ..Default::default()
+        };
+        self.gap.set_adv_conf(&scan_rsp)?;
         drop(state);
         self.gatts.create_service(
             gatt_if,
@@ -442,6 +478,8 @@ impl BleGattServer {
 
         if state.connections.as_ref().is_some_and(|conn| conn.peer == addr) {
             state.connections = None;
+            drop(state);
+            self.gap.start_advertising()?;
         }
 
         Ok(())

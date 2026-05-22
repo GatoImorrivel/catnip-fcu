@@ -60,7 +60,7 @@ pub trait FCUConfig  {
     fn characteristics(&self) -> Characteristics;
     fn get_current_firemode(&self) -> FireMode;
     fn set_firemode(&mut self, firemode: FireMode) -> anyhow::Result<()>;
-    fn get_firemode_config(&self, firemode: FireMode) -> Option<FireModeConfigMap>;
+    fn get_firemode_config(&self, firemode: FireMode) -> Option<FireModeConfigFields>;
 }
 
 pub trait FireSelector {

@@ -1,5 +1,5 @@
 use catnip_esp32::{
-    Characteristics, ESP32FCU, FCUConfig, FCUKind, FireMode, FireModeConfigMap, FireSelector,
+    Characteristics, ESP32FCU, FCUConfig, FCUKind, FireMode, FireModeConfigFields, FireSelector,
     fire_selector::{ActiveLevel, ESP32FireSelector, FireSelectorPin, Pull},
     server::ESP32FCUServer,
 };
@@ -57,7 +57,7 @@ impl FCUConfig for ShoebillSOE<'_> {
         self.current_firemode
     }
 
-    fn get_firemode_config(&self, _firemode: FireMode) -> Option<FireModeConfigMap> {
+    fn get_firemode_config(&self, _firemode: FireMode) -> Option<FireModeConfigFields> {
         None
     }
 

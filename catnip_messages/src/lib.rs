@@ -7,7 +7,8 @@ use uuid::Uuid;
 #[macro_use]
 mod macros;
 
-pub mod push_events;
+mod push_events;
+pub use push_events::*;
 
 /// Transport for host ↔ FCU messages.
 ///
@@ -33,8 +34,8 @@ define_requests! {
     requests HostToFCURequest,
     responses HostToFCUResponse,
     {
-        GetCapabilities => Characteristics,
-        GetFireModeConfig {firemode: FireMode} => FireModeConfigFields,
+        GetCharacteristcs => Characteristics,
+        GetFireModeConfig {firemode: FireMode} => Option<FireModeConfigFields>,
         GetCurrentFireMode => FireMode,
     }
 }
