@@ -1,3 +1,4 @@
+import * as ExpoCrypto from 'expo-crypto';
 import { ReplicaNotFoundError } from './errors';
 import {
   loadReplicaDatabase,
@@ -14,6 +15,7 @@ import type {
 import {
   assertReplicaType,
   normalizeBluetoothMac,
+  normalizeFcuName,
   normalizeReplicaName,
   omitReservedKeys,
 } from './validation';
@@ -27,7 +29,12 @@ export interface ReplicaRepository {
 }
 
 function toSummary(replica: Replica): ReplicaSummary {
-  return { id: replica.id, name: replica.name, type: replica.type };
+  return {
+    id: replica.id,
+    name: replica.name,
+    type: replica.type,
+    fcuName: replica.fcuName,
+  };
 }
 
 function sortSummaries(a: ReplicaSummary, b: ReplicaSummary): number {
@@ -55,10 +62,11 @@ export function createReplicaRepository(
 
       const replica: Replica = {
         ...extras,
-        id: crypto.randomUUID(),
+        id: ExpoCrypto.randomUUID(),
         name: normalizeReplicaName(input.name),
         type: assertReplicaType(input.type),
         bluetoothMac: normalizeBluetoothMac(input.bluetoothMac),
+        fcuName: normalizeFcuName(input.fcuName),
         createdAt: now,
         updatedAt: now,
       };
@@ -88,6 +96,10 @@ export function createReplicaRepository(
 
       if ('bluetoothMac' in input && input.bluetoothMac !== undefined) {
         patch.bluetoothMac = normalizeBluetoothMac(input.bluetoothMac);
+      }
+
+      if ('fcuName' in input && input.fcuName !== undefined) {
+        patch.fcuName = normalizeFcuName(input.fcuName);
       }
 
       const updated: Replica = {

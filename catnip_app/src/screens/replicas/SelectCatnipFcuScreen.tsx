@@ -49,7 +49,7 @@ export function SelectCatnipFcuScreen() {
         await connect(device);
         router.push({
           pathname: '/replicas/new',
-          params: { bluetoothMac: device.id },
+          params: { bluetoothMac: device.id, fcuName: getPeripheralLabel(device) },
         });
       } catch (err: unknown) {
         setConnectError(err instanceof Error ? err.message : String(err));

@@ -28,6 +28,7 @@ export {
 export {
   assertReplicaType,
   normalizeBluetoothMac,
+  normalizeFcuName,
   normalizeReplicaName,
   omitReservedKeys,
 } from './validation';

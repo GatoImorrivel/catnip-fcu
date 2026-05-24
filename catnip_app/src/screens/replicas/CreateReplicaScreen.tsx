@@ -17,8 +17,12 @@ import { Screen } from '@/screens/components';
 
 export function CreateReplicaScreen() {
   const router = useRouter();
-  const { bluetoothMac } = useLocalSearchParams<{ bluetoothMac?: string }>();
+  const { bluetoothMac, fcuName } = useLocalSearchParams<{
+    bluetoothMac?: string;
+    fcuName?: string;
+  }>();
   const mac = typeof bluetoothMac === 'string' ? bluetoothMac : '';
+  const boundFcuName = typeof fcuName === 'string' ? fcuName.trim() : '';
   const { theme } = useTheme();
   const { create } = useReplicas();
   const [name, setName] = useState('');
@@ -27,13 +31,13 @@ export function CreateReplicaScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!mac) {
+    if (!mac || !boundFcuName) {
       router.replace('/replicas/select-fcu');
     }
-  }, [mac, router]);
+  }, [boundFcuName, mac, router]);
 
   const handleSave = useCallback(async () => {
-    if (!mac) {
+    if (!mac || !boundFcuName) {
       return;
     }
 
@@ -41,16 +45,16 @@ export function CreateReplicaScreen() {
     setError(null);
 
     try {
-      await create({ name, type, bluetoothMac: mac });
+      await create({ name, type, bluetoothMac: mac, fcuName: boundFcuName });
       router.replace('/');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
-  }, [create, mac, name, router, type]);
+  }, [boundFcuName, create, mac, name, router, type]);
 
-  if (!mac) {
+  if (!mac || !boundFcuName) {
     return null;
   }
 
@@ -123,7 +127,7 @@ export function CreateReplicaScreen() {
       </View>
 
       <Text style={[styles.macLabel, { color: theme.colors.muted }]}>Paired FCU</Text>
-      <Text style={[styles.macValue, { color: theme.colors.foreground }]}>{mac}</Text>
+      <Text style={[styles.macValue, { color: theme.colors.foreground }]}>{boundFcuName}</Text>
 
       {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
 

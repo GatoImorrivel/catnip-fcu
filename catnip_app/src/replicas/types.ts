@@ -10,6 +10,8 @@ export interface ReplicaCore {
   type: ReplicaType;
   /** BLE peripheral id (MAC on Android) captured when the FCU was paired at creation. */
   bluetoothMac: string;
+  /** Advertised / local BLE name captured when the FCU was paired at creation. */
+  fcuName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -21,17 +23,19 @@ export interface ReplicaCore {
 export type Replica = ReplicaCore & Record<string, unknown>;
 
 /** Shallow list entry (no timestamps or custom fields). */
-export type ReplicaSummary = Pick<ReplicaCore, 'id' | 'name' | 'type'>;
+export type ReplicaSummary = Pick<ReplicaCore, 'id' | 'name' | 'type' | 'fcuName'>;
 
 export type CreateReplicaInput = {
   name: string;
   type: ReplicaType;
   bluetoothMac: string;
+  fcuName: string;
 } & Record<string, unknown>;
 
 export type UpdateReplicaInput = Partial<{
   name: string;
   type: ReplicaType;
   bluetoothMac: string;
+  fcuName: string;
 }> &
   Record<string, unknown>;

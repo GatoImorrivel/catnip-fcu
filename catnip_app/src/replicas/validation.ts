@@ -24,6 +24,19 @@ export function normalizeBluetoothMac(value: unknown): string {
   return bluetoothMac;
 }
 
+export function normalizeFcuName(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new ReplicaValidationError('fcuName must be a string');
+  }
+
+  const fcuName = value.trim();
+  if (!fcuName) {
+    throw new ReplicaValidationError('fcuName cannot be empty');
+  }
+
+  return fcuName;
+}
+
 export function normalizeReplicaName(value: unknown): string {
   if (typeof value !== 'string') {
     throw new ReplicaValidationError('name must be a string');
