@@ -12,7 +12,6 @@ harness = false  # do not use the built-in cargo test harness -> resolve rust-an
 
 [features]
 default = []
-
 experimental = ["esp-idf-svc/experimental"]
 
 [dependencies]
@@ -24,7 +23,7 @@ esp-idf-svc = { version = "0.51", features = [
   "default",
 ] }
 anyhow = "1.0.100"
-catnip_esp32 = { path = "../../catnip_esp32", features = ["bt"] }
+catnip_esp32 = { path = "../../catnip_esp32" }
 
 [build-dependencies]
 embuild = "0.33"

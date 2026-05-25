@@ -4,29 +4,19 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = []
-bt = ["dep:postcard", "dep:enumset", "dep:serde"]
-experimental = ["esp-idf-svc/experimental"]
+default = ["esp-idf-svc/experimental"]
 
 [package.metadata.esp-idf-sys]
 mcu = "esp32"
 esp_idf_sdkconfig_defaults = ["sdkconfig.defaults", "sdkconfig.defaults.bt"]
 
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = [
-    "cfg(esp_idf_bt_enabled)",
-    "cfg(esp_idf_bt_bluedroid_enabled)",
-    "cfg(esp32s2)",
-] }
-
 [dependencies]
 catnip_core = { path = "../catnip_core" }
-catnip_messages = { path = "../catnip_messages" }
 anyhow = "1.0.100"
 log = "0.4"
-postcard = { version = "1.1", optional = true, features = ["alloc"] }
-enumset = { version = "1.1", optional = true }
-serde = { version = "1", optional = true }
+postcard = { version = "1.1", features = ["alloc"] }
+enumset = { version = "1.1" }
+serde = { version = "1" }
 uuid = { version = "1", features = ["serde"] }
 esp-idf-svc = { version = "0.51", features = [
   "std",

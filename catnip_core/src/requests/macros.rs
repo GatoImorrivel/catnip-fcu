@@ -11,13 +11,13 @@ macro_rules! define_request {
                 pub message_id: uuid::Uuid,
             }
 
-            impl crate::Request for [<$variant Request>] {
+            impl crate::protocol::Request for [<$variant Request>] {
                 type Reply = $reply;
 
                 fn reply(
                     &self,
                     reply: Self::Reply,
-                    transport: &mut impl crate::Transport,
+                    transport: &mut impl crate::protocol::Transport,
                 ) -> anyhow::Result<()> {
                     transport.reply(self.message_id, reply)?;
                     Ok(())
@@ -34,13 +34,13 @@ macro_rules! define_request {
                 $( pub $field: $ftype, )*
             }
 
-            impl crate::Request for [<$variant Request>] {
+            impl crate::protocol::Request for [<$variant Request>] {
                 type Reply = $reply;
 
                 fn reply(
                     &self,
                     reply: Self::Reply,
-                    transport: &mut impl crate::Transport,
+                    transport: &mut impl crate::protocol::Transport,
                 ) -> anyhow::Result<()> {
                     transport.reply(self.message_id, reply)?;
                     Ok(())

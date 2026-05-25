@@ -2,8 +2,9 @@ use std::fmt::Debug;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, Context};
-use catnip_messages::{codec, HostToFCURequest, Transport};
+use anyhow::{Context, anyhow};
+use catnip_core::protocol;
+use catnip_core::{protocol::*, requests::HostToFCURequest};
 use enumset::enum_set;
 use esp_idf_svc::bt::ble::gap::{AdvConfiguration, BleGapEvent, EspBleGap};
 use esp_idf_svc::bt::ble::gatt::server::{ConnectionId, EspGatts, GattsEvent, TransferId};
@@ -14,7 +15,7 @@ use esp_idf_svc::bt::ble::gatt::{
 use esp_idf_svc::bt::{BdAddr, Ble, BtDriver, BtStatus, BtUuid};
 use esp_idf_svc::hal::modem::Modem;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
-use esp_idf_svc::sys::{EspError, ESP_FAIL};
+use esp_idf_svc::sys::{ESP_FAIL, EspError};
 use log::warn;
 use serde::Serialize;
 use uuid::Uuid;
@@ -68,8 +69,7 @@ impl BluetoothTransport {
         let (request_tx, rx) = mpsc::channel();
 
         let bt = Arc::new(
-            BtDriver::new(modem, Some(nvs))
-                .context("failed to initialize BLE controller")?,
+            BtDriver::new(modem, Some(nvs)).context("failed to initialize BLE controller")?,
         );
 
         let server = Arc::new(BleGattServer::new(
@@ -105,12 +105,12 @@ impl Transport for BluetoothTransport {
         message_id: Uuid,
         response: R,
     ) -> anyhow::Result<()> {
-        let frame = codec::encode_reply_frame(message_id, &response)?;
+        let frame = protocol::encode_reply_frame(message_id, &response)?;
         self.server.notify_host(&frame)
     }
 
     fn emit<E: Serialize>(&mut self, event: E) -> anyhow::Result<()> {
-        let frame = codec::encode_event(&event)?;
+        let frame = protocol::encode_event(&event)?;
         self.server.notify_host(&frame)
     }
 }
@@ -214,10 +214,7 @@ impl BleGattServer {
     fn maybe_start_advertising(&self) -> Result<(), EspError> {
         let mut state = self.state.lock().unwrap();
 
-        if state.adv_configured
-            && state.scan_rsp_configured
-            && !state.advertising_started
-        {
+        if state.adv_configured && state.scan_rsp_configured && !state.advertising_started {
             state.advertising_started = true;
             drop(state);
             self.gap.start_advertising()?;
@@ -226,11 +223,7 @@ impl BleGattServer {
         Ok(())
     }
 
-    fn on_gatts_event(
-        &self,
-        gatt_if: GattInterface,
-        event: GattsEvent,
-    ) -> Result<(), EspError> {
+    fn on_gatts_event(&self, gatt_if: GattInterface, event: GattsEvent) -> Result<(), EspError> {
         match event {
             GattsEvent::ServiceRegistered { status, app_id } => {
                 self.check_gatt_status(status)?;
@@ -441,7 +434,11 @@ impl BleGattServer {
     fn delete_conn(&self, addr: BdAddr) -> Result<(), EspError> {
         let mut state = self.state.lock().unwrap();
 
-        if state.connections.as_ref().is_some_and(|conn| conn.peer == addr) {
+        if state
+            .connections
+            .as_ref()
+            .is_some_and(|conn| conn.peer == addr)
+        {
             state.connections = None;
             drop(state);
             self.gap.start_advertising()?;
@@ -496,7 +493,7 @@ impl BleGattServer {
             }
             state.recv_buffer[start..end].copy_from_slice(value);
 
-            match codec::decode_request(&state.recv_buffer) {
+            match protocol::decode_request(&state.recv_buffer) {
                 Ok(request) => {
                     state.recv_buffer.clear();
                     if self.request_tx.send(request).is_err() {

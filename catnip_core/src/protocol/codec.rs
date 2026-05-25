@@ -5,7 +5,7 @@
 use serde::{de::DeserializeOwned, Serialize};
 use uuid::Uuid;
 
-use crate::{FCUToHostEvent, HostToFCURequest};
+use crate::requests::{HostToFCURequest, push_events::FCUToHostEvent};
 
 /// First byte on `FCU_TO_HOST` notifications: correlated reply.
 pub const OUTBOUND_TAG_REPLY: u8 = 1;

@@ -1,15 +1,12 @@
 use std::fmt::Debug;
 
-use catnip_core::{Characteristics, FireMode, FireModeConfigFields};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
-#[macro_use]
-mod macros;
+use crate::requests::HostToFCURequest;
 
-pub mod codec;
-mod push_events;
-pub use push_events::*;
+mod codec;
+pub use codec::*;
 
 /// Transport for host ↔ FCU messages.
 ///
@@ -29,21 +26,4 @@ pub trait Request: DeserializeOwned {
     type Reply: Debug + Clone + Serialize;
 
     fn reply(&self, reply: Self::Reply, transport: &mut impl Transport) -> anyhow::Result<()>;
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum UpdateFireModeConfigError {
-    InvalidConfig,
-    UnsupportedFireMode
-}
-
-define_requests! {
-    requests HostToFCURequest,
-    responses HostToFCUResponse,
-    {
-        GetCharacteristcs => Characteristics,
-        GetFireModeConfig {firemode: FireMode} => Option<FireModeConfigFields>,
-        GetCurrentFireMode => FireMode,
-        UpdateFireModeConfig {firemode:FireMode} => Option<UpdateFireModeConfigError>
-    }
 }

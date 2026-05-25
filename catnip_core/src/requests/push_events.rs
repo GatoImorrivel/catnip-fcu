@@ -1,5 +1,6 @@
-use catnip_core::FireMode;
 use serde::{Deserialize, Serialize};
+
+use crate::FireMode;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FCUToHostEvent {

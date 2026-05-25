@@ -169,7 +169,11 @@ name = "catnip_core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "paste",
+ "postcard",
  "serde",
+ "thiserror 2.0.18",
+ "uuid",
 ]
 
 [[package]]
@@ -178,26 +182,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "catnip_core",
- "catnip_messages",
  "embuild",
  "enumset",
  "esp-idf-svc",
  "log",
  "postcard",
  "serde",
- "uuid",
-]
-
-[[package]]
-name = "catnip_messages"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "catnip_core",
- "paste",
- "postcard",
- "serde",
- "thiserror 2.0.18",
  "uuid",
 ]
 

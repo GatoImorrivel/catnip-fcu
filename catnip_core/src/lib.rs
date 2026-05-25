@@ -1,3 +1,6 @@
+pub mod requests;
+pub mod protocol;
+
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

@@ -3,13 +3,6 @@
     "Cargo.toml",
     "catnip_core/Cargo.toml",
     "catnip_esp32/Cargo.toml",
-    "catnip_messages/Cargo.toml",
     "engines/esp32-diy-shoebill-soe/Cargo.toml"
-  ],
-  "rust-analyzer.check.features": [
-    "bt"
-  ],
-  "rust-analyzer.cargo.features": [
-    "bt"
   ],
 }

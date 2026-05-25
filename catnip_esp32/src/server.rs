@@ -1,24 +1,20 @@
 use catnip_core::FCUConfig;
-use catnip_messages::{FCUToHostEvent, Request};
-use catnip_messages::{HostToFCURequest, Transport};
+use catnip_core::protocol::{Request, Transport};
+use catnip_core::requests::{HostToFCURequest, push_events::FCUToHostEvent};
 
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::modem::Modem;
-#[cfg(all(feature = "bt",))]
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
 
 use crate::ESP32FCU;
-#[cfg(all(feature = "bt",))]
 use crate::{BluetoothTransport, BluetoothTransportConfig};
 
 pub struct ESP32FCUServer<F: FCUConfig + ESP32FCU> {
     fcu: F,
-    #[cfg(all(feature = "bt",))]
     transport: BluetoothTransport,
 }
 
 impl<F: FCUConfig + ESP32FCU> ESP32FCUServer<F> {
-    #[cfg(all(feature = "bt",))]
     pub fn new(fcu: F, modem: Modem, nvs: EspDefaultNvsPartition) -> anyhow::Result<Self> {
         let device_name = fcu.characteristics().name;
         let transport =
@@ -27,10 +23,6 @@ impl<F: FCUConfig + ESP32FCU> ESP32FCUServer<F> {
         Ok(Self { fcu, transport })
     }
 
-    #[cfg(not(all(feature = "bt",)))]
-    pub fn new(fcu: F) -> Self {
-        Self { fcu }
-    }
 
     pub fn run(mut self) {
         loop {
@@ -42,21 +34,18 @@ impl<F: FCUConfig + ESP32FCU> ESP32FCUServer<F> {
 
             let new_firemode = self.fcu.get_current_firemode();
 
-            #[cfg(all(feature = "bt",))]
             if (old_firemode != new_firemode) {
                 self.transport
                     .emit(FCUToHostEvent::FireModeChange(new_firemode))
                     .unwrap();
             }
 
-            #[cfg(all(feature = "bt",))]
             self.poll_transport();
 
             FreeRtos::delay_ms(20);
         }
     }
 
-    #[cfg(all(feature = "bt",))]
     fn poll_transport(&mut self) {
         while let Some(request) = self.transport.try_receive() {
             if let Err(err) = self.handle_request(request) {
@@ -65,7 +54,6 @@ impl<F: FCUConfig + ESP32FCU> ESP32FCUServer<F> {
         }
     }
 
-    #[cfg(all(feature = "bt",))]
     fn handle_request(&mut self, request: HostToFCURequest) -> anyhow::Result<()> {
         match request {
             HostToFCURequest::GetCharacteristcs(req) => {
