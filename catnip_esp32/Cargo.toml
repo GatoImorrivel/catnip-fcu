@@ -8,7 +8,8 @@ default = ["esp-idf-svc/experimental"]
 
 [package.metadata.esp-idf-sys]
 mcu = "esp32"
-esp_idf_sdkconfig_defaults = ["sdkconfig.defaults", "sdkconfig.defaults.bt"]
+# Paths are relative to the workspace root (see esp-idf-sys BUILD-OPTIONS.md).
+esp_idf_sdkconfig_defaults = ["catnip_esp32/sdkconfig.defaults"]
 
 [dependencies]
 catnip_core = { path = "../catnip_core" }

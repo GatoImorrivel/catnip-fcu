@@ -646,6 +646,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "esp32-diy-shoebill-soe"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "catnip_esp32",
+ "embuild",
+ "esp-idf-svc",
+ "log",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

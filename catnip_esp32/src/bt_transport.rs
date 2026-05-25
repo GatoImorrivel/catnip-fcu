@@ -3,6 +3,9 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, anyhow};
+use catnip_core::ble::{
+    catnip_manufacturer_data, CATNIP_FCU_SERVICE_UUID, FCU_TO_HOST_UUID, HOST_TO_FCU_UUID,
+};
 use catnip_core::protocol;
 use catnip_core::{protocol::*, requests::HostToFCURequest};
 use enumset::enum_set;
@@ -23,34 +26,19 @@ use uuid::Uuid;
 const APP_ID: u16 = 0;
 const CCCD_NOTIFY: u16 = 0x0001;
 
-/// Primary Catnip FCU GATT service. Host apps should scan/filter on this UUID.
-pub const CATNIP_FCU_SERVICE_UUID: u128 = 0x6f6e6963_74617000_00000000_00000001;
-/// Host → FCU requests (write).
-pub const HOST_TO_FCU_UUID: u128 = 0x6f6e6963_74617000_00000000_00000002;
-/// FCU → Host replies and push events (notify).
-pub const FCU_TO_HOST_UUID: u128 = 0x6f6e6963_74617000_00000000_00000003;
-
-/// Company ID prefix in manufacturer-specific advertising data (not Bluetooth SIG assigned).
-pub const CATNIP_FCU_MANUFACTURER_ID: u16 = 0x0CFC;
-/// Magic tag in manufacturer data; host UIs can match this to identify Catnip FCUs.
-pub const CATNIP_FCU_ADV_MAGIC: [u8; 4] = *b"CNFC";
-
-/// Manufacturer-specific advertising payload: `[company_id LE][CATNIP_FCU_ADV_MAGIC]`.
-pub fn catnip_fcu_manufacturer_data() -> Vec<u8> {
-    let mut data = Vec::with_capacity(6);
-    data.extend_from_slice(&CATNIP_FCU_MANUFACTURER_ID.to_le_bytes());
-    data.extend_from_slice(&CATNIP_FCU_ADV_MAGIC);
-    data
-}
+/// Reference manufacturer ID for this catnip-fcu product (not assigned by the framework).
+pub const CATNIP_FCU_REFERENCE_MANUFACTURER_ID: u16 = 0x0CFC;
 
 pub struct BluetoothTransportConfig {
     pub device_name: String,
+    pub manufacturer_id: u16,
 }
 
 impl BluetoothTransportConfig {
-    pub fn new(device_name: impl Into<String>) -> Self {
+    pub fn new(device_name: impl Into<String>, manufacturer_id: u16) -> Self {
         Self {
             device_name: device_name.into(),
+            manufacturer_id,
         }
     }
 }
@@ -162,7 +150,7 @@ impl BleGattServer {
             gatts,
             state: Arc::new(Mutex::new(BleState {
                 device_name: config.device_name,
-                manufacturer_data: catnip_fcu_manufacturer_data(),
+                manufacturer_data: catnip_manufacturer_data(config.manufacturer_id),
                 ..Default::default()
             })),
             request_tx,

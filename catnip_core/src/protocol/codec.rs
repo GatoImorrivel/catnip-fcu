@@ -1,6 +1,7 @@
 //! Postcard encode/decode for host ↔ FCU BLE frames.
 //!
-//! Wire layout matches `catnip_esp32::bt_transport` and `catnip_app` message codecs.
+//! Wire layout matches the Catnip BLE GATT notify channel (`catnip_core::ble::FCU_TO_HOST_UUID`)
+//! and `catnip_app` message codecs.
 
 use serde::{de::DeserializeOwned, Serialize};
 use uuid::Uuid;

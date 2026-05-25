@@ -1,18 +1,18 @@
 import { BleScanMode, type Peripheral, type ScanOptions } from 'react-native-ble-manager';
 
-/** Matches `catnip_esp32::bt_transport::CATNIP_FCU_SERVICE_UUID`. */
+/** Matches `catnip_core::ble::CATNIP_FCU_SERVICE_UUID`. */
 export const CATNIP_FCU_SERVICE_UUID = '6f6e6963-7461-7000-0000-000000000001';
 
-/** Matches `catnip_esp32::bt_transport::HOST_TO_FCU_UUID`. */
+/** Matches `catnip_core::ble::HOST_TO_FCU_UUID`. */
 export const HOST_TO_FCU_UUID = '6f6e6963-7461-7000-0000-000000000002';
 
-/** Matches `catnip_esp32::bt_transport::FCU_TO_HOST_UUID`. */
+/** Matches `catnip_core::ble::FCU_TO_HOST_UUID`. */
 export const FCU_TO_HOST_UUID = '6f6e6963-7461-7000-0000-000000000003';
 
-/** Matches `catnip_esp32::bt_transport::CATNIP_FCU_MANUFACTURER_ID`. */
+/** This app's configured manufacturer ID for ADV fallback scan (see esp32 `CATNIP_FCU_REFERENCE_MANUFACTURER_ID`). */
 export const CATNIP_FCU_MANUFACTURER_ID = 0x0cfc;
 
-/** Matches `catnip_esp32::bt_transport::CATNIP_FCU_ADV_MAGIC` (`b"CNFC"`). */
+/** Matches `catnip_core::ble::CATNIP_FCU_ADV_MAGIC` (`b"CNFC"`). */
 export const CATNIP_FCU_ADV_MAGIC = [0x43, 0x4e, 0x46, 0x43] as const;
 
 /**

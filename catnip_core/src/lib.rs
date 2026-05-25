@@ -1,5 +1,11 @@
+pub mod ble;
 pub mod requests;
 pub mod protocol;
+
+pub use ble::{
+    catnip_manufacturer_data, CATNIP_FCU_ADV_MAGIC, CATNIP_FCU_SERVICE_UUID, FCU_TO_HOST_UUID,
+    HOST_TO_FCU_UUID,
+};
 
 use std::collections::HashMap;
 

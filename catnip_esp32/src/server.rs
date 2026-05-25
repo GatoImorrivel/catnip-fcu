@@ -7,7 +7,9 @@ use esp_idf_svc::hal::modem::Modem;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
 
 use crate::ESP32FCU;
-use crate::{BluetoothTransport, BluetoothTransportConfig};
+use crate::{
+    BluetoothTransport, BluetoothTransportConfig, CATNIP_FCU_REFERENCE_MANUFACTURER_ID,
+};
 
 pub struct ESP32FCUServer<F: FCUConfig + ESP32FCU> {
     fcu: F,
@@ -18,7 +20,11 @@ impl<F: FCUConfig + ESP32FCU> ESP32FCUServer<F> {
     pub fn new(fcu: F, modem: Modem, nvs: EspDefaultNvsPartition) -> anyhow::Result<Self> {
         let device_name = fcu.characteristics().name;
         let transport =
-            BluetoothTransport::new(modem, nvs, BluetoothTransportConfig::new(device_name))?;
+            BluetoothTransport::new(
+                modem,
+                nvs,
+                BluetoothTransportConfig::new(device_name, CATNIP_FCU_REFERENCE_MANUFACTURER_ID),
+            )?;
 
         Ok(Self { fcu, transport })
     }
@@ -34,7 +40,7 @@ impl<F: FCUConfig + ESP32FCU> ESP32FCUServer<F> {
 
             let new_firemode = self.fcu.get_current_firemode();
 
-            if (old_firemode != new_firemode) {
+            if old_firemode != new_firemode {
                 self.transport
                     .emit(FCUToHostEvent::FireModeChange(new_firemode))
                     .unwrap();
