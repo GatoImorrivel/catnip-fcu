@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { unpairFcu } from '@/lib/unpair-fcu';
 import {
   replicaRepository,
   type CreateReplicaInput,
@@ -69,10 +68,6 @@ export function useReplicas({
 
   const remove = useCallback(
     async (id: string) => {
-      const replica = await repository.get(id);
-      if (replica?.bluetoothMac) {
-        await unpairFcu(replica.bluetoothMac);
-      }
       await repository.delete(id);
       await refresh();
     },
