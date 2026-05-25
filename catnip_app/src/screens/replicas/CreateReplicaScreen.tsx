@@ -1,9 +1,10 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,8 +13,19 @@ import {
 
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
+import {
+  getWeaponMetadataFields,
+  hasWeaponMetadata,
+  isWeaponMetadataComplete,
+  type WeaponMetadataValues,
+} from '@/replicas/weapon-metadata';
 import { REPLICA_TYPES, type ReplicaType } from '@/replicas';
+import { Dropdown } from '@/screens/components/Dropdown';
 import { Screen } from '@/screens/components';
+
+type CreateStep = 'weapon' | 'name';
+
+const WEAPON_TYPE_OPTIONS = REPLICA_TYPES.map((type) => ({ value: type, label: type }));
 
 export function CreateReplicaScreen() {
   const router = useRouter();
@@ -25,10 +37,15 @@ export function CreateReplicaScreen() {
   const boundFcuName = typeof fcuName === 'string' ? fcuName.trim() : '';
   const { theme } = useTheme();
   const { create } = useReplicas();
-  const [name, setName] = useState('');
+
+  const [step, setStep] = useState<CreateStep>('weapon');
   const [type, setType] = useState<ReplicaType>('M4');
+  const [metadata, setMetadata] = useState<WeaponMetadataValues>({});
+  const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const metadataFields = useMemo(() => getWeaponMetadataFields(type), [type]);
 
   useEffect(() => {
     if (!mac || !boundFcuName) {
@@ -36,8 +53,36 @@ export function CreateReplicaScreen() {
     }
   }, [boundFcuName, mac, router]);
 
-  const handleSave = useCallback(async () => {
-    if (!mac || !boundFcuName) {
+  useEffect(() => {
+    setMetadata({});
+  }, [type]);
+
+  const weaponStepComplete =
+    !hasWeaponMetadata(type) || isWeaponMetadataComplete(type, metadata);
+
+  const handleContinueFromWeapon = useCallback(() => {
+    if (!weaponStepComplete) {
+      return;
+    }
+
+    setStep('name');
+  }, [weaponStepComplete]);
+
+  const handleBack = useCallback(() => {
+    if (step === 'name') {
+      setStep('weapon');
+      return;
+    }
+
+    router.back();
+  }, [router, step]);
+
+  const handleCreate = useCallback(async () => {
+    if (!mac || !boundFcuName || !name.trim()) {
+      return;
+    }
+
+    if (!weaponStepComplete) {
       return;
     }
 
@@ -45,24 +90,32 @@ export function CreateReplicaScreen() {
     setError(null);
 
     try {
-      await create({ name, type, bluetoothMac: mac, fcuName: boundFcuName });
+      await create({
+        name,
+        type,
+        bluetoothMac: mac,
+        fcuName: boundFcuName,
+        ...metadata,
+      });
       router.replace('/');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
-  }, [boundFcuName, create, mac, name, router, type]);
+  }, [boundFcuName, create, mac, metadata, name, router, type, weaponStepComplete]);
 
   if (!mac || !boundFcuName) {
     return null;
   }
 
+  const stepTitle = step === 'weapon' ? 'Weapon type' : 'Name replica';
+
   return (
-    <Screen>
+    <Screen style={styles.screen}>
       <View style={styles.header}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={handleBack}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           hitSlop={8}
@@ -73,93 +126,147 @@ export function CreateReplicaScreen() {
         <Text style={[styles.title, { color: theme.colors.foreground }]}>New replica</Text>
       </View>
 
-      <Text style={[styles.label, { color: theme.colors.muted }]}>Name</Text>
-      <TextInput
-        value={name}
-        onChangeText={setName}
-        placeholder="Replica name"
-        placeholderTextColor={theme.colors.muted}
-        autoCapitalize="words"
-        autoCorrect={false}
-        style={[
-          styles.input,
-          {
-            color: theme.colors.foreground,
-            borderColor: theme.colors.border,
-            backgroundColor: theme.colors.background,
-          },
-        ]}
-      />
+      <Text style={[styles.pairedFcu, { color: theme.colors.muted }]}>
+        Paired FCU: <Text style={{ color: theme.colors.foreground }}>{boundFcuName}</Text>
+      </Text>
 
-      <Text style={[styles.label, { color: theme.colors.muted }]}>Type</Text>
-      <View style={styles.typeRow}>
-        {REPLICA_TYPES.map((option) => {
-          const selected = type === option;
+      <Text style={[styles.stepTitle, { color: theme.colors.foreground }]}>{stepTitle}</Text>
 
-          return (
-            <Pressable
-              key={option}
-              onPress={() => setType(option)}
-              style={({ pressed }) => [
-                styles.typeOption,
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        {step === 'weapon' ? (
+          <>
+            <Dropdown
+              label="Weapon type"
+              value={type}
+              options={WEAPON_TYPE_OPTIONS}
+              onChange={setType}
+              style={metadataFields.length === 0 ? undefined : styles.dropdownWithMetadata}
+            />
+
+            {metadataFields.map((field) => (
+              <View key={field.key} style={styles.metadataField}>
+                <Text style={[styles.metadataLabel, { color: theme.colors.muted }]}>
+                  {field.label}
+                </Text>
+                <View style={styles.choiceRow}>
+                  {field.options.map((option) => {
+                    const selected = metadata[field.key] === option.value;
+
+                    return (
+                      <Pressable
+                        key={String(option.value)}
+                        onPress={() =>
+                          setMetadata((prev) => ({ ...prev, [field.key]: option.value }))
+                        }
+                        style={({ pressed }) => [
+                          styles.choiceOption,
+                          {
+                            borderColor: selected ? theme.colors.primary : theme.colors.border,
+                            backgroundColor: selected
+                              ? theme.colors.primary
+                              : theme.colors.background,
+                            opacity: pressed ? 0.85 : 1,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            color: selected
+                              ? theme.colors.primaryForeground
+                              : theme.colors.foreground,
+                            fontWeight: '600',
+                          }}
+                        >
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+          </>
+        ) : null}
+
+        {step === 'name' ? (
+          <>
+            <Text style={[styles.label, { color: theme.colors.muted }]}>Name</Text>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="Replica name"
+              placeholderTextColor={theme.colors.muted}
+              autoCapitalize="words"
+              autoCorrect={false}
+              style={[
+                styles.input,
                 {
-                  borderColor: selected ? theme.colors.primary : theme.colors.border,
-                  backgroundColor: selected
-                    ? theme.colors.primary
-                    : theme.colors.background,
-                  opacity: pressed ? 0.85 : 1,
+                  color: theme.colors.foreground,
+                  borderColor: theme.colors.border,
+                  backgroundColor: theme.colors.background,
                 },
               ]}
-            >
-              <Text
-                style={{
-                  color: selected
-                    ? theme.colors.primaryForeground
-                    : theme.colors.foreground,
-                  fontWeight: '600',
-                }}
-              >
-                {option}
+            />
+          </>
+        ) : null}
+
+        {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
+      </ScrollView>
+
+      <View style={styles.footer}>
+        {step === 'weapon' ? (
+          <Pressable
+            onPress={handleContinueFromWeapon}
+            disabled={!weaponStepComplete}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              {
+                backgroundColor: theme.colors.primary,
+                opacity: pressed || !weaponStepComplete ? 0.6 : 1,
+              },
+            ]}
+          >
+            <Text style={[styles.primaryButtonLabel, { color: theme.colors.primaryForeground }]}>
+              Continue
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {step === 'name' ? (
+          <Pressable
+            onPress={() => void handleCreate()}
+            disabled={saving || !name.trim()}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              {
+                backgroundColor: theme.colors.primary,
+                opacity: pressed || saving || !name.trim() ? 0.6 : 1,
+              },
+            ]}
+          >
+            {saving ? (
+              <ActivityIndicator color={theme.colors.primaryForeground} />
+            ) : (
+              <Text style={[styles.primaryButtonLabel, { color: theme.colors.primaryForeground }]}>
+                Create replica
               </Text>
-            </Pressable>
-          );
-        })}
+            )}
+          </Pressable>
+        ) : null}
       </View>
-
-      <Text style={[styles.macLabel, { color: theme.colors.muted }]}>Paired FCU</Text>
-      <Text style={[styles.macValue, { color: theme.colors.foreground }]}>{boundFcuName}</Text>
-
-      {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
-
-      <Pressable
-        onPress={() => void handleSave()}
-        disabled={saving || !name.trim()}
-        style={({ pressed }) => [
-          styles.saveButton,
-          {
-            backgroundColor: theme.colors.primary,
-            opacity: pressed || saving || !name.trim() ? 0.6 : 1,
-          },
-        ]}
-      >
-        {saving ? (
-          <ActivityIndicator color={theme.colors.primaryForeground} />
-        ) : (
-          <Text style={[styles.saveLabel, { color: theme.colors.primaryForeground }]}>
-            Save replica
-          </Text>
-        )}
-      </Pressable>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    paddingBottom: 0,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 20,
+    marginBottom: 12,
   },
   backButton: {
     padding: 4,
@@ -170,6 +277,44 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '700',
+  },
+  pairedFcu: {
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  stepTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  body: {
+    flex: 1,
+  },
+  bodyContent: {
+    paddingBottom: 16,
+  },
+  dropdownWithMetadata: {
+    marginBottom: 24,
+  },
+  metadataField: {
+    marginBottom: 20,
+  },
+  metadataLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  choiceRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  choiceOption: {
+    flex: 1,
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    paddingVertical: 12,
   },
   label: {
     fontSize: 14,
@@ -182,42 +327,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    marginBottom: 20,
-  },
-  typeRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
-  },
-  typeOption: {
-    flex: 1,
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 10,
-    paddingVertical: 12,
-  },
-  macLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  macValue: {
-    fontSize: 14,
-    fontVariant: ['tabular-nums'],
-    marginBottom: 20,
   },
   error: {
     fontSize: 14,
-    marginBottom: 12,
+    marginTop: 12,
   },
-  saveButton: {
+  footer: {
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  primaryButton: {
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 10,
     paddingVertical: 14,
     minHeight: 48,
   },
-  saveLabel: {
+  primaryButtonLabel: {
     fontSize: 16,
     fontWeight: '600',
   },

@@ -1,10 +1,14 @@
 use catnip_esp32::{
-    Characteristics, ESP32FCU, FCUConfig, FCUKind, FireMode, FireModeConfigFields, FireSelector,
+    Characteristics, ESP32FCU, FCUConfig, FCUKind, FireMode, FireModeConfigFields, FireSelector, FireModeConfig,
     fire_selector::{ActiveLevel, ESP32FireSelector, FireSelectorPin, Pull},
     server::ESP32FCUServer,
 };
 use esp_idf_svc::hal::{gpio::{AnyInputPin, AnyOutputPin, InputPin, OutputPin}, peripherals::Peripherals};
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
+
+use crate::firemodes::SemiAutoConfig;
+
+mod firemodes;
 
 fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
@@ -57,8 +61,12 @@ impl FCUConfig for ShoebillSOE<'_> {
         self.current_firemode
     }
 
-    fn get_firemode_config(&self, _firemode: FireMode) -> Option<FireModeConfigFields> {
-        None
+    fn get_firemode_config(&self, firemode: FireMode) -> Option<impl FireModeConfig> {
+        Some(SemiAutoConfig {
+           delay_ms: 10, 
+           dwell_ms: 10
+        
+        })
     }
 
     fn set_firemode(&mut self, firemode: FireMode) -> anyhow::Result<()> {

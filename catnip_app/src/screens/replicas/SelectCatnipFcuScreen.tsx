@@ -77,7 +77,7 @@ export function SelectCatnipFcuScreen() {
         >
           <MaterialIcons name="arrow-back" size={24} color={theme.colors.foreground} />
         </Pressable>
-        <Text style={[styles.title, { color: theme.colors.foreground }]}>Select FCU</Text>
+        <Text style={[styles.title, { color: theme.colors.foreground }]}>Pair FCU</Text>
       </View>
 
       <Text style={[styles.hint, { color: theme.colors.muted }]}>

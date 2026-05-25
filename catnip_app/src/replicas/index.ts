@@ -17,6 +17,15 @@ export {
   type ReplicaRepository,
 } from './repository';
 export {
+  getWeaponMetadataFields,
+  hasWeaponMetadata,
+  isWeaponMetadataComplete,
+  WEAPON_METADATA_FIELDS,
+  type MetadataChoiceField,
+  type MetadataChoiceOption,
+  type WeaponMetadataValues,
+} from './weapon-metadata';
+export {
   REPLICA_TYPES,
   type CreateReplicaInput,
   type Replica,

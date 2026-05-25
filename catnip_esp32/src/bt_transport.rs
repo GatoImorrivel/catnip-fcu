@@ -3,7 +3,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Context};
-use catnip_messages::{HostToFCURequest, Transport};
+use catnip_messages::{codec, HostToFCURequest, Transport};
 use enumset::enum_set;
 use esp_idf_svc::bt::ble::gap::{AdvConfiguration, BleGapEvent, EspBleGap};
 use esp_idf_svc::bt::ble::gatt::server::{ConnectionId, EspGatts, GattsEvent, TransferId};
@@ -52,18 +52,6 @@ impl BluetoothTransportConfig {
             device_name: device_name.into(),
         }
     }
-}
-
-#[repr(u8)]
-enum OutboundTag {
-    Reply = 1,
-    Event = 2,
-}
-
-#[derive(Serialize)]
-struct ReplyPacket<'a, R: Serialize + ?Sized> {
-    message_id: Uuid,
-    reply: &'a R,
 }
 
 pub struct BluetoothTransport {
@@ -117,37 +105,14 @@ impl Transport for BluetoothTransport {
         message_id: Uuid,
         response: R,
     ) -> anyhow::Result<()> {
-        let frame = encode_reply(message_id, &response)?;
+        let frame = codec::encode_reply_frame(message_id, &response)?;
         self.server.notify_host(&frame)
     }
 
     fn emit<E: Serialize>(&mut self, event: E) -> anyhow::Result<()> {
-        let frame = encode_event(&event)?;
+        let frame = codec::encode_event(&event)?;
         self.server.notify_host(&frame)
     }
-}
-
-fn encode_reply<R: Serialize>(message_id: Uuid, response: &R) -> anyhow::Result<Vec<u8>> {
-    let payload = postcard::to_allocvec(&ReplyPacket {
-        message_id,
-        reply: response,
-    })?;
-    let mut frame = Vec::with_capacity(1 + payload.len());
-    frame.push(OutboundTag::Reply as u8);
-    frame.extend(payload);
-    Ok(frame)
-}
-
-fn encode_event<E: Serialize>(event: &E) -> anyhow::Result<Vec<u8>> {
-    let payload = postcard::to_allocvec(event)?;
-    let mut frame = Vec::with_capacity(1 + payload.len());
-    frame.push(OutboundTag::Event as u8);
-    frame.extend(payload);
-    Ok(frame)
-}
-
-fn decode_request(buf: &[u8]) -> anyhow::Result<HostToFCURequest> {
-    Ok(postcard::from_bytes(buf)?)
 }
 
 type ExBtDriver = BtDriver<'static, Ble>;
@@ -531,15 +496,22 @@ impl BleGattServer {
             }
             state.recv_buffer[start..end].copy_from_slice(value);
 
-            match decode_request(&state.recv_buffer) {
+            match codec::decode_request(&state.recv_buffer) {
                 Ok(request) => {
                     state.recv_buffer.clear();
                     if self.request_tx.send(request).is_err() {
                         warn!("BLE request channel closed");
                     }
                 }
+                Err(postcard::Error::DeserializeUnexpectedEnd) => {
+                    // Full frame not received yet (long writes may arrive in chunks).
+                }
                 Err(err) => {
-                    warn!("BLE request decode failed (buffer len {}): {err}", state.recv_buffer.len());
+                    warn!(
+                        "BLE request decode failed (buffer len {}): {err}",
+                        state.recv_buffer.len()
+                    );
+                    state.recv_buffer.clear();
                 }
             }
         } else {

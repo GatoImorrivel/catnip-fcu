@@ -7,6 +7,7 @@ use uuid::Uuid;
 #[macro_use]
 mod macros;
 
+pub mod codec;
 mod push_events;
 pub use push_events::*;
 

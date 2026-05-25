@@ -94,7 +94,9 @@ export function ReplicasScreen() {
           onPress={() => {
             if (selectionMode) {
               toggleReplica(item.id);
+              return;
             }
+            router.push({ pathname: '/replicas/[id]', params: { id: item.id } });
           }}
           delayLongPress={400}
           accessibilityRole="button"
@@ -149,6 +151,7 @@ export function ReplicasScreen() {
       );
     },
     [
+      router,
       selectReplica,
       selectedIds,
       selectionMode,

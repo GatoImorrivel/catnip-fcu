@@ -34,7 +34,6 @@ impl<F: FCUConfig + ESP32FCU> ESP32FCUServer<F> {
 
     pub fn run(mut self) {
         loop {
-
             let old_firemode = self.fcu.get_current_firemode();
 
             if let Err(err) = self.fcu.routine() {
@@ -43,8 +42,11 @@ impl<F: FCUConfig + ESP32FCU> ESP32FCUServer<F> {
 
             let new_firemode = self.fcu.get_current_firemode();
 
-            if(old_firemode != new_firemode) {
-                self.transport.emit(FCUToHostEvent::FireModeChange(new_firemode)).unwrap();
+            #[cfg(all(feature = "bt",))]
+            if (old_firemode != new_firemode) {
+                self.transport
+                    .emit(FCUToHostEvent::FireModeChange(new_firemode))
+                    .unwrap();
             }
 
             #[cfg(all(feature = "bt",))]
@@ -71,11 +73,19 @@ impl<F: FCUConfig + ESP32FCU> ESP32FCUServer<F> {
             }
             HostToFCURequest::GetFireModeConfig(req) => {
                 let config = self.fcu.get_firemode_config(req.firemode);
-                req.reply(config, &mut self.transport)?;
-            },
+                if let Some(config) = config {
+                    use catnip_core::FireModeConfig;
+                    req.reply(Some(config.fields()), &mut self.transport)?;
+                } else {
+                    req.reply(None, &mut self.transport)?;
+                }
+            }
+            HostToFCURequest::UpdateFireModeConfig(req) => {
+                let config = self.fcu.get_firemode_config(req.firemode);
+            }
             HostToFCURequest::GetCurrentFireMode(req) => {
                 req.reply(self.fcu.get_current_firemode(), &mut self.transport)?;
-            },
+            }
         }
         Ok(())
     }

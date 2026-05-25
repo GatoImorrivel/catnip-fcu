@@ -7,3 +7,24 @@ export {
   type UseBleConnectOptions,
   type UseBleConnectResult,
 } from './use-ble-connect';
+export {
+  useCatnipFcu,
+  type CatnipFcuStatus,
+  type UseCatnipFcuOptions,
+  type UseCatnipFcuResult,
+} from './use-catnip-fcu';
+export {
+  useFcuRequest,
+  type UseFcuRequestOptions,
+  type UseFcuRequestResult,
+} from './use-fcu-request';
+export {
+  useFcuCharacteristics,
+  type UseFcuCharacteristicsOptions,
+  type UseFcuCharacteristicsResult,
+} from './use-fcu-characteristics';
+export {
+  useFcuCurrentFireMode,
+  useFcuFireModeConfig,
+  useFcuUpdateFireModeConfig,
+} from './use-fcu-fire-mode';
