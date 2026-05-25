@@ -1,0 +1,36 @@
+<svg width="512" height="1024" viewBox="0 0 512 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="#111111" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Top circle shape -->
+    <path d="M256 40
+             L290 92
+             A210 210 0 0 1 466 302
+             A210 210 0 0 1 358 484
+             L358 484" />
+
+    <path d="M256 40
+             L222 92
+             A210 210 0 0 0 46 302
+             A210 210 0 0 0 154 484
+             L154 484" />
+
+    <!-- Outer handle -->
+    <path d="M154 484
+             A102 102 0 0 1 358 484
+             L358 820
+             A102 102 0 0 1 154 820
+             Z" />
+
+    <!-- Inner rings -->
+    <path d="M184 520
+             A72 72 0 0 1 328 520
+             L328 780
+             A72 72 0 0 1 184 780
+             Z" />
+
+    <path d="M214 560
+             A42 42 0 0 1 298 560
+             L298 740
+             A42 42 0 0 1 214 740
+             Z" />
+  </g>
+</svg>

@@ -52,15 +52,15 @@ pub enum UpdateFireModeFieldValue {
 }
 
 pub trait FireModeConfig {
-    fn fields() -> Vec<FireModeConfigField>;
-    fn update_field(field_name: &str, value: UpdateFireModeFieldValue) -> anyhow::Result<()>;
+    fn fields(&self) -> Vec<FireModeConfigField>;
+    fn update(&mut self, new: Self) -> anyhow::Result<()>;
 }
 
 pub trait FCUConfig  {
     fn characteristics(&self) -> Characteristics;
     fn get_current_firemode(&self) -> FireMode;
     fn set_firemode(&mut self, firemode: FireMode) -> anyhow::Result<()>;
-    fn get_firemode_config(&self, firemode: FireMode) -> Option<FireModeConfigFields>;
+    fn get_firemode_config(&self, firemode: FireMode) -> Option<impl FireModeConfig>;
 }
 
 pub trait FireSelector {

@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use catnip_core::{Characteristics, FireMode, FireModeConfigFields};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 #[macro_use]
@@ -30,6 +30,12 @@ pub trait Request: DeserializeOwned {
     fn reply(&self, reply: Self::Reply, transport: &mut impl Transport) -> anyhow::Result<()>;
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum UpdateFireModeConfigError {
+    InvalidConfig,
+    UnsupportedFireMode
+}
+
 define_requests! {
     requests HostToFCURequest,
     responses HostToFCUResponse,
@@ -37,5 +43,6 @@ define_requests! {
         GetCharacteristcs => Characteristics,
         GetFireModeConfig {firemode: FireMode} => Option<FireModeConfigFields>,
         GetCurrentFireMode => FireMode,
+        UpdateFireModeConfig {firemode:FireMode} => Option<UpdateFireModeConfigError>
     }
 }
