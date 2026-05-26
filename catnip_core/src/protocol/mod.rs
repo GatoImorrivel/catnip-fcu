@@ -15,7 +15,7 @@ pub trait Transport {
     fn try_receive(&mut self) -> Option<HostToFCURequest>;
     /// Send a reply correlated to the originating request via `message_id`.
     fn reply<R: Debug + Clone + Serialize>(&mut self, message_id: Uuid, response: R) -> anyhow::Result<()>;
-    fn emit<E: Serialize>(&mut self, event: E) -> anyhow::Result<()>;
+    fn emit<E: Debug + Serialize>(&mut self, event: E) -> anyhow::Result<()>;
 }
 
 /// A request that can be answered through a [`Transport`].

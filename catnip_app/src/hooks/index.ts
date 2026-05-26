@@ -27,7 +27,9 @@ export {
   useFcuFireModeConfigFields,
   useFcuFireModeForPosition,
   useFcuFireSelectorPosition,
+  useFcuSaveFireModeAssignment,
   useFcuSupportedFireModes,
   useFcuUpdateFireModeConfig,
+  type UseFcuSaveFireModeAssignmentResult,
 } from './use-fcu-fire-mode';
 export { mergeSchemaWithValues } from '@/messages/types';

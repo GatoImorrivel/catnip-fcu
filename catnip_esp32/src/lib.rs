@@ -5,6 +5,7 @@ pub mod server;
 pub mod storage;
 
 mod bt_transport;
+mod protocol_trace;
 
 pub use bt_transport::{
     BluetoothTransport, BluetoothTransportConfig, CATNIP_FCU_REFERENCE_MANUFACTURER_ID,

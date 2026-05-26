@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -10,13 +10,20 @@ import {
   View,
 } from 'react-native';
 
+import {
+  FireModeConfigSchemaForm,
+  defaultWireValuesFromSchema,
+} from '@/components/firemode';
 import { useFcuCharacteristics } from '@/hooks/use-fcu-characteristics';
+import {
+  useFcuFireModeConfigFields,
+  useFcuSupportedFireModes,
+} from '@/hooks/use-fcu-fire-mode';
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
-import { useFcuSupportedFireModes } from '@/hooks/use-fcu-fire-mode';
-import type { Characteristics } from '@/messages/types';
+import type { Characteristics, FireModeName } from '@/messages/types';
 import { formatFireModeName } from '@/messages/types';
-import { Screen } from '@/screens/components';
+import { Dropdown, Screen } from '@/screens/components';
 
 function formatFcuKind(kind: Characteristics['kind']): string {
   if (kind.tag === 'AEG') {
@@ -60,6 +67,9 @@ export function ReplicaDetailScreen() {
   const [fcuName, setFcuName] = useState('');
   const [peripheralId, setPeripheralId] = useState<string | null>(null);
   const [replicaError, setReplicaError] = useState<string | null>(null);
+
+  const [selectedFireMode, setSelectedFireMode] = useState<FireModeName | null>(null);
+  const [configValues, setConfigValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!replicaId) {
@@ -109,8 +119,39 @@ export function ReplicaDetailScreen() {
     enabled: peripheralId !== null && characteristics !== null,
   });
 
+  const {
+    data: configSchema,
+    loading: configSchemaLoading,
+    error: configSchemaError,
+  } = useFcuFireModeConfigFields(peripheralId, selectedFireMode, {
+    enabled: peripheralId !== null && selectedFireMode !== null,
+  });
+
+  useEffect(() => {
+    if (supportedFireModes?.length && selectedFireMode === null) {
+      setSelectedFireMode(supportedFireModes[0]);
+    }
+  }, [supportedFireModes, selectedFireMode]);
+
+  useEffect(() => {
+    if (configSchema) {
+      setConfigValues(defaultWireValuesFromSchema(configSchema));
+    }
+  }, [configSchema]);
+
+  const fireModeOptions = useMemo(
+    () =>
+      (supportedFireModes ?? []).map((mode) => ({
+        value: mode,
+        label: formatFireModeName(mode),
+      })),
+    [supportedFireModes],
+  );
+
   const error = replicaError ?? fcuError;
   const statusLabel = connectionStatusLabel(connectionStatus, loading);
+  const showFireModeConfig =
+    peripheralId !== null && (supportedFireModes?.length ?? 0) > 0;
 
   return (
     <Screen>
@@ -133,7 +174,7 @@ export function ReplicaDetailScreen() {
       </View>
 
       <Text style={[styles.subtitle, { color: theme.colors.muted }]}>
-        Placeholder — FCU characteristics
+        FCU connection
       </Text>
 
       {fcuName ? (
@@ -167,16 +208,56 @@ export function ReplicaDetailScreen() {
         </View>
       ) : null}
 
-      {characteristics && !loading ? (
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.foreground }]}>
-            Characteristics
-          </Text>
-          <Text style={[styles.characteristics, { color: theme.colors.foreground }]}>
-            {formatCharacteristics(characteristics, supportedFireModes ?? [])}
-          </Text>
-        </ScrollView>
-      ) : null}
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        {characteristics && !loading ? (
+          <>
+            <Text style={[styles.sectionTitle, { color: theme.colors.foreground }]}>
+              Characteristics
+            </Text>
+            <Text style={[styles.characteristics, { color: theme.colors.foreground }]}>
+              {formatCharacteristics(characteristics, supportedFireModes ?? [])}
+            </Text>
+          </>
+        ) : null}
+
+        {showFireModeConfig ? (
+          <>
+            <Text
+              style={[styles.sectionTitle, styles.sectionGap, { color: theme.colors.foreground }]}
+            >
+              Fire mode configuration
+            </Text>
+            {selectedFireMode !== null ? (
+              <Dropdown
+                label="Fire mode"
+                value={selectedFireMode}
+                options={fireModeOptions}
+                onChange={setSelectedFireMode}
+              />
+            ) : null}
+            {configSchemaLoading ? (
+              <View style={styles.inlineLoading}>
+                <ActivityIndicator color={theme.colors.primary} size="small" />
+                <Text style={[styles.loadingText, { color: theme.colors.muted }]}>
+                  Loading schema…
+                </Text>
+              </View>
+            ) : null}
+            {configSchemaError ? (
+              <Text style={[styles.schemaError, { color: theme.colors.primary }]}>
+                {configSchemaError}
+              </Text>
+            ) : null}
+            {configSchema && !configSchemaLoading ? (
+              <FireModeConfigSchemaForm
+                schema={configSchema}
+                values={configValues}
+                onValuesChange={setConfigValues}
+              />
+            ) : null}
+          </>
+        ) : null}
+      </ScrollView>
     </Screen>
   );
 }
@@ -248,8 +329,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 8,
   },
+  sectionGap: {
+    marginTop: 24,
+  },
   characteristics: {
     fontSize: 15,
     lineHeight: 22,
+  },
+  inlineLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  schemaError: {
+    fontSize: 14,
+    marginBottom: 12,
   },
 });

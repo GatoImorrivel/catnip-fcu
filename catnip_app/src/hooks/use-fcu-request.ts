@@ -10,6 +10,11 @@ import {
 export type UseFcuRequestOptions = UseCatnipFcuOptions & {
   /** When false, skips the fetch even if the client is ready. Defaults to true. */
   fetchEnabled?: boolean;
+  /**
+   * Values that should trigger a new fetch when they change (e.g. `firemodeName`,
+   * `position`). Pass the same request parameters your `fetcher` closes over.
+   */
+  refetchDeps?: readonly unknown[];
 };
 
 export type UseFcuRequestResult<T> = {
@@ -27,14 +32,15 @@ export type UseFcuRequestResult<T> = {
  * Runs an FCU request once the GATT session is ready.
  *
  * Connection lifecycle is handled by {@link useCatnipFcu}; `fetcher` is called when
- * `client` becomes available (and on `refetch`).
+ * `client` becomes available (and on `refetch`). For parameterized requests, pass
+ * those parameters in `refetchDeps` so a new fetch runs when they change.
  */
 export function useFcuRequest<T>(
   peripheralId: string | null,
   fetcher: (client: CatnipBleClient) => Promise<T>,
   options: UseFcuRequestOptions = {},
 ): UseFcuRequestResult<T> {
-  const { fetchEnabled = true, ...fcuOptions } = options;
+  const { fetchEnabled = true, refetchDeps = [], ...fcuOptions } = options;
   const {
     client,
     status: connectionStatus,
@@ -73,8 +79,10 @@ export function useFcuRequest<T>(
     if (!fetchEnabled || !ready || !client) {
       return;
     }
+    setData(null);
     void runFetch();
-  }, [client, fetchEnabled, ready, runFetch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetchDeps is intentional
+  }, [client, fetchEnabled, ready, runFetch, ...refetchDeps]);
 
   const isConnecting = connectionStatus === 'connecting';
   const isLoading = isConnecting || loading;

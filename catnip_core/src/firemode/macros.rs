@@ -79,7 +79,12 @@ macro_rules! define_firemode_system {
             }
 
             fn from_name_for_schema(name: &str) -> ::anyhow::Result<Self> {
-                Self::from_wire(name, ::std::collections::HashMap::new())
+                $crate::define_firemode_system! {
+                    @match_from_name_for_schema
+                    $enum_name,
+                    name,
+                    { $($mode $( ( $config ) )? ;)* }
+                }
             }
         }
 
@@ -346,6 +351,74 @@ macro_rules! define_firemode_system {
                 [ $($arms)*
                     stringify!($mode) => ::core::result::Result::Ok($enum_name::$mode(
                         ::core::convert::TryFrom::try_from($values)?,
+                    )),
+                ]
+            }
+            { $($rest)* }
+        }
+    };
+
+    (
+        @match_from_name_for_schema
+        $enum_name:ident,
+        $name:ident,
+        { $($rest:tt)* }
+    ) => {
+        $crate::define_firemode_system! {
+            @match_from_name_for_schema_collect
+            $enum_name,
+            $name,
+            { [] }
+            { $($rest)* }
+        }
+    };
+
+    (
+        @match_from_name_for_schema_collect
+        $enum_name:ident,
+        $name:ident,
+        { [ $($arms:tt)* ] }
+        {}
+    ) => {
+        match $name {
+            $($arms)*
+            _ => ::anyhow::bail!("unsupported firemode: {}", $name),
+        }
+    };
+
+    (
+        @match_from_name_for_schema_collect
+        $enum_name:ident,
+        $name:ident,
+        { [ $($arms:tt)* ] }
+        { $mode:ident ; $($rest:tt)* }
+    ) => {
+        $crate::define_firemode_system! {
+            @match_from_name_for_schema_collect
+            $enum_name,
+            $name,
+            {
+                [ $($arms)* stringify!($mode) => ::core::result::Result::Ok($enum_name::$mode), ]
+            }
+            { $($rest)* }
+        }
+    };
+
+    (
+        @match_from_name_for_schema_collect
+        $enum_name:ident,
+        $name:ident,
+        { [ $($arms:tt)* ] }
+        { $mode:ident ( $config:ty ) ; $($rest:tt)* }
+    ) => {
+        $crate::define_firemode_system! {
+            @match_from_name_for_schema_collect
+            $enum_name,
+            $name,
+            {
+                [ $($arms)*
+                    stringify!($mode) => ::core::result::Result::Ok($enum_name::$mode(
+                        <$config as ::core::default::Default>::default(),
                     )),
                 ]
             }

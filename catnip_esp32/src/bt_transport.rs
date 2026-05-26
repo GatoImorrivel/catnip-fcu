@@ -8,6 +8,8 @@ use catnip_core::ble::{
 };
 use catnip_core::protocol;
 use catnip_core::{protocol::*, requests::HostToFCURequest};
+
+use crate::protocol_trace;
 use enumset::enum_set;
 use esp_idf_svc::bt::ble::gap::{AdvConfiguration, BleGapEvent, EspBleGap};
 use esp_idf_svc::bt::ble::gatt::server::{ConnectionId, EspGatts, GattsEvent, TransferId};
@@ -93,11 +95,13 @@ impl Transport for BluetoothTransport {
         message_id: Uuid,
         response: R,
     ) -> anyhow::Result<()> {
+        protocol_trace::log_outbound_reply(&message_id, &response);
         let frame = protocol::encode_reply_frame(message_id, &response)?;
         self.server.notify_host(&frame)
     }
 
-    fn emit<E: Serialize>(&mut self, event: E) -> anyhow::Result<()> {
+    fn emit<E: Serialize + Debug>(&mut self, event: E) -> anyhow::Result<()> {
+        protocol_trace::log_outbound_event(&event);
         let frame = protocol::encode_event(&event)?;
         self.server.notify_host(&frame)
     }
@@ -483,6 +487,7 @@ impl BleGattServer {
 
             match protocol::decode_request(&state.recv_buffer) {
                 Ok(request) => {
+                    protocol_trace::log_inbound(&request);
                     state.recv_buffer.clear();
                     if self.request_tx.send(request).is_err() {
                         warn!("BLE request channel closed");
