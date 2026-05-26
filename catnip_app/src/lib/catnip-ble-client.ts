@@ -8,15 +8,19 @@ import {
 } from '@/constants/ble';
 import {
   decodeCharacteristicsReply,
-  decodeFireModeReply,
-  decodeOptionalFireModeConfigReply,
+  decodeFireModeConfigFieldsReply,
+  decodeFireModeForPositionReply,
+  decodeFireSelectorPositionReply,
+  decodeSupportedFireModesReply,
   decodeUpdateFireModeConfigReply,
   splitReplyPacket,
 } from '@/messages/replies';
 import {
   encodeGetCharacteristicsRequest,
-  encodeGetCurrentFireModeRequest,
-  encodeGetFireModeConfigRequest,
+  encodeGetCurrentFireSelectorPositionRequest,
+  encodeGetFireModeConfigFieldsRequest,
+  encodeGetFireModeForPositionRequest,
+  encodeGetSupportedFireModesRequest,
   encodeUpdateFireModeConfigRequest,
 } from '@/messages/requests';
 import {
@@ -29,8 +33,9 @@ import {
 import type {
   Characteristics,
   FCUToHostEvent,
-  FireMode,
   FireModeConfigFields,
+  FireModeName,
+  FireModePositionConfig,
 } from '@/messages/types';
 import {
   UpdateFireModeConfigError,
@@ -144,31 +149,51 @@ export class CatnipBleClient {
     (payload) => decodeCharacteristicsReply(payload));
   }
 
-  async getFireModeConfig(firemode: FireMode): Promise<FireModeConfigFields | null> {
+  async getCurrentFireSelectorPosition(): Promise<number> {
     return this.request(
-      'GetFireModeConfig',
-      (messageId) => encodeGetFireModeConfigRequest(messageId, firemode),
-      (payload) => decodeOptionalFireModeConfigReply(payload),
-      { firemode },
+      'GetCurrentFireSelectorPosition',
+      (messageId) => encodeGetCurrentFireSelectorPositionRequest(messageId),
+      (payload) => decodeFireSelectorPositionReply(payload),
     );
   }
 
-  async getCurrentFireMode(): Promise<FireMode> {
+  async getFireModeForPosition(position: number): Promise<FireModePositionConfig> {
     return this.request(
-      'GetCurrentFireMode',
-      (messageId) => encodeGetCurrentFireModeRequest(messageId),
-      (payload) => decodeFireModeReply(payload),
+      'GetFireModeForPosition',
+      (messageId) => encodeGetFireModeForPositionRequest(messageId, position),
+      (payload) => decodeFireModeForPositionReply(payload),
+      { position },
+    );
+  }
+
+  async getSupportedFireModes(): Promise<FireModeName[]> {
+    return this.request(
+      'GetSupportedFireModes',
+      (messageId) => encodeGetSupportedFireModesRequest(messageId),
+      (payload) => decodeSupportedFireModesReply(payload),
+    );
+  }
+
+  async getFireModeConfigFields(firemodeName: FireModeName): Promise<FireModeConfigFields> {
+    return this.request(
+      'GetFireModeConfigFields',
+      (messageId) => encodeGetFireModeConfigFieldsRequest(messageId, firemodeName),
+      (payload) => decodeFireModeConfigFieldsReply(payload),
+      { firemodeName },
     );
   }
 
   async updateFireModeConfig(
-    firemode: FireMode,
+    position: number,
+    firemodeName: FireModeName,
+    config: Record<string, string>,
   ): Promise<UpdateFireModeConfigError | null> {
     return this.request(
       'UpdateFireModeConfig',
-      (messageId) => encodeUpdateFireModeConfigRequest(messageId, firemode),
+      (messageId) =>
+        encodeUpdateFireModeConfigRequest(messageId, position, firemodeName, config),
       (payload) => decodeUpdateFireModeConfigReply(payload),
-      { firemode },
+      { position, firemodeName },
     );
   }
 
@@ -328,7 +353,7 @@ export class CatnipBleClient {
     }
   }
 
-  /** Optional hook for push events (fire mode changes, trigger pull). */
+  /** Optional hook for push events (selector / fire mode changes, trigger pull). */
   onEvent?: (event: FCUToHostEvent) => void;
 
   private rejectAllPending(error: Error): void {

@@ -24,7 +24,10 @@ export {
   type UseFcuCharacteristicsResult,
 } from './use-fcu-characteristics';
 export {
-  useFcuCurrentFireMode,
-  useFcuFireModeConfig,
+  useFcuFireModeConfigFields,
+  useFcuFireModeForPosition,
+  useFcuFireSelectorPosition,
+  useFcuSupportedFireModes,
   useFcuUpdateFireModeConfig,
 } from './use-fcu-fire-mode';
+export { mergeSchemaWithValues } from '@/messages/types';

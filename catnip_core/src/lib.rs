@@ -1,17 +1,15 @@
 pub mod ble;
+#[macro_use]
 pub mod firemode;
 pub mod protocol;
 pub mod requests;
 
-use std::{collections::HashMap, time::Instant};
+use std::time::Instant;
 
 pub use ble::{
     CATNIP_FCU_ADV_MAGIC, CATNIP_FCU_SERVICE_UUID, FCU_TO_HOST_UUID, HOST_TO_FCU_UUID,
     catnip_manufacturer_data,
 };
-use serde::{Serialize, de::DeserializeOwned};
-
-use crate::firemode::{FireModeConfig, FireModeConfigField};
 
 pub type FireSelectorPosition = usize;
 
@@ -34,30 +32,23 @@ pub enum FireResult {
 }
 
 pub trait FCU {
-    type FireModesConfigs: TryFrom<(Self::FireModes, HashMap<String, String>), Error = anyhow::Error>
-        + Into<HashMap<String, String>>;
-    type FireModes: TryFrom<String, Error = anyhow::Error> + Into<String> + Clone;
+    type FireMode: firemode::FireMode + firemode::PersistableFireModeAssignment;
+
     fn characteristics(&self) -> Characteristics;
     fn poll_selector_position(&mut self) -> anyhow::Result<FireSelectorPosition>;
+    fn assignment_for_position(&self, position: FireSelectorPosition) -> Self::FireMode;
+    fn set_assignment(
+        &mut self,
+        position: FireSelectorPosition,
+        mode: Self::FireMode,
+    ) -> anyhow::Result<()>;
+    fn supported_modes(&self) -> Vec<Self::FireMode>;
     fn fire_cycle(
         &mut self,
-        firemode: Self::FireModes,
-        config: Self::FireModesConfigs,
+        mode: Self::FireMode,
         last_shot_instant: Instant,
         now: Instant,
     ) -> anyhow::Result<FireResult>;
-    fn get_supported_firemodes(&self) -> Vec<Self::FireModes>;
-    fn get_firemode_fields(&self, firemode: Self::FireModes) -> Vec<FireModeConfigField>;
-    fn get_firemode_for_position(
-        &self,
-        selector_position: FireSelectorPosition,
-    ) -> (Self::FireModes, Self::FireModesConfigs);
-    fn update_firemode_for_position(
-        &mut self,
-        selector_position: FireSelectorPosition,
-        firemode: Self::FireModes,
-        config: Self::FireModesConfigs,
-    ) -> anyhow::Result<()>;
 }
 
 pub trait FireSelector {
@@ -66,7 +57,14 @@ pub trait FireSelector {
     fn position_count(&self) -> usize;
 }
 
-pub trait FireModeConfigStorage {
-    fn save_firemode_config(&self, config: &impl FireModeConfig) -> anyhow::Result<()>;
-    fn load_firemode_config(&self, fire_selector_position: usize) -> anyhow::Result<()>;
+pub trait PositionAssignmentStorage {
+    fn save_assignment(
+        &self,
+        position: usize,
+        assignment: &impl serde::Serialize,
+    ) -> anyhow::Result<()>;
+    fn load_assignment<M: serde::de::DeserializeOwned>(
+        &self,
+        position: usize,
+    ) -> anyhow::Result<Option<M>>;
 }

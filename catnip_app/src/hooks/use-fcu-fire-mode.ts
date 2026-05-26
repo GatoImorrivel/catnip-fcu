@@ -1,32 +1,64 @@
-import type { FireMode, FireModeConfigFields } from '@/messages/types';
+import type {
+  FireModeConfigFields,
+  FireModeName,
+  FireModePositionConfig,
+} from '@/messages/types';
 import { UpdateFireModeConfigError } from '@/messages/types';
 import { useFcuRequest, type UseFcuRequestOptions, type UseFcuRequestResult } from './use-fcu-request';
 
-export function useFcuCurrentFireMode(
+export function useFcuFireSelectorPosition(
   peripheralId: string | null,
   options: UseFcuRequestOptions = {},
-): UseFcuRequestResult<FireMode> {
-  return useFcuRequest(peripheralId, (client) => client.getCurrentFireMode(), options);
-}
-
-export function useFcuFireModeConfig(
-  peripheralId: string | null,
-  firemode: FireMode | null,
-  options: UseFcuRequestOptions = {},
-): UseFcuRequestResult<FireModeConfigFields | null> {
+): UseFcuRequestResult<number> {
   return useFcuRequest(
     peripheralId,
-    (client) => client.getFireModeConfig(firemode!),
+    (client) => client.getCurrentFireSelectorPosition(),
+    options,
+  );
+}
+
+export function useFcuFireModeForPosition(
+  peripheralId: string | null,
+  position: number | null,
+  options: UseFcuRequestOptions = {},
+): UseFcuRequestResult<FireModePositionConfig> {
+  return useFcuRequest(
+    peripheralId,
+    (client) => client.getFireModeForPosition(position!),
     {
       ...options,
-      fetchEnabled: (options.fetchEnabled ?? true) && firemode !== null,
+      fetchEnabled: (options.fetchEnabled ?? true) && position !== null,
+    },
+  );
+}
+
+export function useFcuSupportedFireModes(
+  peripheralId: string | null,
+  options: UseFcuRequestOptions = {},
+): UseFcuRequestResult<FireModeName[]> {
+  return useFcuRequest(peripheralId, (client) => client.getSupportedFireModes(), options);
+}
+
+export function useFcuFireModeConfigFields(
+  peripheralId: string | null,
+  firemodeName: FireModeName | null,
+  options: UseFcuRequestOptions = {},
+): UseFcuRequestResult<FireModeConfigFields> {
+  return useFcuRequest(
+    peripheralId,
+    (client) => client.getFireModeConfigFields(firemodeName!),
+    {
+      ...options,
+      fetchEnabled: (options.fetchEnabled ?? true) && firemodeName !== null,
     },
   );
 }
 
 export function useFcuUpdateFireModeConfig(
   peripheralId: string | null,
-  firemode: FireMode | null,
+  position: number | null,
+  firemodeName: FireModeName | null,
+  config: Record<string, string> | null,
   options: Omit<UseFcuRequestOptions, 'fetchEnabled'> & { fetchEnabled?: boolean } = {},
 ): UseFcuRequestResult<UpdateFireModeConfigError | null> & {
   update: () => Promise<void>;
@@ -35,16 +67,18 @@ export function useFcuUpdateFireModeConfig(
 
   const result = useFcuRequest(
     peripheralId,
-    (client) => client.updateFireModeConfig(firemode!),
+    (client) =>
+      client.updateFireModeConfig(position!, firemodeName!, config ?? {}),
     {
       ...rest,
-      fetchEnabled: autoFetch && firemode !== null,
+      fetchEnabled:
+        autoFetch && position !== null && firemodeName !== null && config !== null,
     },
   );
 
   const update = async () => {
-    if (!result.client || firemode === null) {
-      throw new Error('FCU not connected or fire mode not set');
+    if (!result.client || position === null || firemodeName === null || config === null) {
+      throw new Error('FCU not connected or fire mode parameters not set');
     }
     await result.refetch();
   };

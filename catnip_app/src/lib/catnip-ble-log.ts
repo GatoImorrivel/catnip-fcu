@@ -1,6 +1,6 @@
 import {
-  FireMode,
   UpdateFireModeConfigError,
+  formatFireModeName,
   type Characteristics,
   type FCUToHostEvent,
   type FireModeConfigFields,
@@ -22,13 +22,6 @@ export function isCatnipBleLoggingEnabled(): boolean {
   return loggingEnabled;
 }
 
-const FIRE_MODE_NAMES: Record<FireMode, string> = {
-  [FireMode.Safe]: 'Safe',
-  [FireMode.FullAuto]: 'FullAuto',
-  [FireMode.SemiAuto]: 'SemiAuto',
-  [FireMode.Burst]: 'Burst',
-};
-
 const UPDATE_ERROR_NAMES: Record<UpdateFireModeConfigError, string> = {
   [UpdateFireModeConfigError.InvalidConfig]: 'InvalidConfig',
   [UpdateFireModeConfigError.UnsupportedFireMode]: 'UnsupportedFireMode',
@@ -49,16 +42,11 @@ function formatFcuKind(kind: Characteristics['kind']): string {
   return kind.tag === 'AEG' ? 'AEG' : `HPA(solenoids=${kind.num_solenoids})`;
 }
 
-function formatFireMode(mode: FireMode): string {
-  return FIRE_MODE_NAMES[mode] ?? `FireMode(${mode})`;
-}
-
 export function formatCharacteristics(chars: Characteristics): Record<string, unknown> {
   return {
     name: chars.name,
     kind: formatFcuKind(chars.kind),
     num_fire_positions: chars.num_fire_positions,
-    supported_firemodes: chars.supported_firemodes.map(formatFireMode),
   };
 }
 
@@ -81,10 +69,14 @@ export function formatReplyBody(
   switch (method) {
     case 'GetCharacteristcs':
       return formatCharacteristics(body as Characteristics);
-    case 'GetFireModeConfig':
-      return formatFireModeConfig(body as FireModeConfigFields | null);
-    case 'GetCurrentFireMode':
-      return { firemode: formatFireMode(body as FireMode) };
+    case 'GetFireModeConfigFields':
+      return formatFireModeConfig(body as FireModeConfigFields);
+    case 'GetFireModeForPosition':
+      return body;
+    case 'GetCurrentFireSelectorPosition':
+      return { position: body };
+    case 'GetSupportedFireModes':
+      return { modes: (body as string[]).map(formatFireModeName) };
     case 'UpdateFireModeConfig': {
       const err = body as UpdateFireModeConfigError | null;
       return err === null ? null : { error: UPDATE_ERROR_NAMES[err] ?? err };
@@ -96,7 +88,10 @@ export function formatReplyBody(
 
 export function formatFcuEvent(event: FCUToHostEvent): Record<string, unknown> {
   if (event.tag === 'FireModeChange') {
-    return { event: 'FireModeChange', firemode: formatFireMode(event.firemode) };
+    return { event: 'FireModeChange', firemode: formatFireModeName(event.firemode_name) };
+  }
+  if (event.tag === 'SelectorPositionChange') {
+    return { event: 'SelectorPositionChange', position: event.position };
   }
   return { event: 'TriggerPull' };
 }

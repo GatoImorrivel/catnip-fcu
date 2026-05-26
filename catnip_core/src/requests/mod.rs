@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    Characteristics, FireSelectorPosition, firemode::FireModeConfigField,
+    Characteristics, FireSelectorPosition, firemode::FireModeConfigFields,
     requests::errors::UpdateFireModeConfigError,
 };
 
@@ -19,7 +19,7 @@ define_requests! {
         GetCurrentFireSelectorPosition => FireSelectorPosition,
         GetFireModeForPosition { position: FireSelectorPosition } => (String, HashMap<String, String>),
         GetSupportedFireModes => Vec<String>,
-        GetFireModeConfigFields {firemode_name:String} => Vec<FireModeConfigField>,
+        GetFireModeConfigFields {firemode_name:String} => FireModeConfigFields,
         UpdateFireModeConfig { position: FireSelectorPosition, firemode_name:String, config: HashMap<String, String> } => Result<(), UpdateFireModeConfigError>,
     }
 }

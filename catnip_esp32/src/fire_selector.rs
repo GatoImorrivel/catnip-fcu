@@ -1,5 +1,5 @@
 use catnip_core::FireSelectorPosition;
-use esp_idf_svc::hal::gpio::{AnyInputPin, Input, InputPin, Level, Pin, PinDriver};
+use esp_idf_svc::hal::gpio::{AnyInputPin, Input, InputPin, Level, PinDriver};
 use esp_idf_svc::hal::sys::gpio_set_pull_mode;
 
 pub use esp_idf_svc::hal::gpio::Pull;

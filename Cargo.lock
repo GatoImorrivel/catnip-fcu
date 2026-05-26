@@ -169,6 +169,7 @@ name = "catnip_core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "catnip_firemode_derive",
  "paste",
  "postcard",
  "serde",
@@ -189,6 +190,15 @@ dependencies = [
  "postcard",
  "serde",
  "uuid",
+]
+
+[[package]]
+name = "catnip_firemode_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -650,6 +660,7 @@ name = "esp32-diy-shoebill-soe"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "catnip_core",
  "catnip_esp32",
  "embuild",
  "esp-idf-svc",

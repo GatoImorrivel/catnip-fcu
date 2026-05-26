@@ -13,16 +13,10 @@ import {
 import { useFcuCharacteristics } from '@/hooks/use-fcu-characteristics';
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
+import { useFcuSupportedFireModes } from '@/hooks/use-fcu-fire-mode';
 import type { Characteristics } from '@/messages/types';
-import { FireMode } from '@/messages/types';
+import { formatFireModeName } from '@/messages/types';
 import { Screen } from '@/screens/components';
-
-const FIRE_MODE_LABELS: Record<FireMode, string> = {
-  [FireMode.Safe]: 'Safe',
-  [FireMode.FullAuto]: 'Full auto',
-  [FireMode.SemiAuto]: 'Semi auto',
-  [FireMode.Burst]: 'Burst',
-};
 
 function formatFcuKind(kind: Characteristics['kind']): string {
   if (kind.tag === 'AEG') {
@@ -31,10 +25,8 @@ function formatFcuKind(kind: Characteristics['kind']): string {
   return `HPA (${kind.num_solenoids} solenoids)`;
 }
 
-function formatCharacteristics(chars: Characteristics): string {
-  const modes = chars.supported_firemodes
-    .map((mode) => FIRE_MODE_LABELS[mode] ?? String(mode))
-    .join(', ');
+function formatCharacteristics(chars: Characteristics, supportedModes: string[]): string {
+  const modes = supportedModes.map(formatFireModeName).join(', ');
 
   return [
     `FCU name: ${chars.name}`,
@@ -113,6 +105,10 @@ export function ReplicaDetailScreen() {
     reconnect,
   } = useFcuCharacteristics(peripheralId, { enabled: peripheralId !== null });
 
+  const { data: supportedFireModes } = useFcuSupportedFireModes(peripheralId, {
+    enabled: peripheralId !== null && characteristics !== null,
+  });
+
   const error = replicaError ?? fcuError;
   const statusLabel = connectionStatusLabel(connectionStatus, loading);
 
@@ -177,7 +173,7 @@ export function ReplicaDetailScreen() {
             Characteristics
           </Text>
           <Text style={[styles.characteristics, { color: theme.colors.foreground }]}>
-            {formatCharacteristics(characteristics)}
+            {formatCharacteristics(characteristics, supportedFireModes ?? [])}
           </Text>
         </ScrollView>
       ) : null}

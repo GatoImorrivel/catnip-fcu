@@ -1,13 +1,12 @@
 /**
- * Postcard encode/decode — keep in sync with `catnip_messages::codec` and
+ * Postcard encode/decode — keep in sync with `catnip_core` serde types and
  * `catnip_esp32::bt_transport` frame tags (`OUTBOUND_TAG_REPLY` / `OUTBOUND_TAG_EVENT`).
  */
 import {
-  FireMode,
-  FireModeConfigType,
   FireModeConfigTypeUnit,
   type FCUKind,
   type FCUToHostEvent,
+  type FireModeConfigSchemaEntry,
   UpdateFireModeConfigError,
 } from './types';
 
@@ -100,20 +99,13 @@ export class PostcardReader {
     return this.readVec(readEntry);
   }
 
-  readFixedArray<T>(length: number, readItem: () => T): T[] {
-    const items: T[] = [];
-    for (let i = 0; i < length; i++) {
-      items.push(readItem());
-    }
-    return items;
-  }
-
-  readFireMode(): FireMode {
-    const variant = this.readU8();
-    if (variant < 0 || variant > 3) {
-      throw new PostcardDecodeError(`invalid FireMode ${variant}`);
-    }
-    return variant as FireMode;
+  readHashMapStringString(): Record<string, string> {
+    const entries = this.readMap(() => {
+      const key = this.readString();
+      const value = this.readString();
+      return [key, value] as const;
+    });
+    return Object.fromEntries(entries);
   }
 
   readFcuKind(): FCUKind {
@@ -129,36 +121,44 @@ export class PostcardReader {
 
   readCharacteristics() {
     const num_fire_positions = this.readU8();
-    const supported_firemodes = this.readFixedArray(4, () => this.readFireMode());
     const name = this.readString();
     const kind = this.readFcuKind();
-    return { num_fire_positions, supported_firemodes, name, kind };
+    return { num_fire_positions, name, kind };
   }
 
-  readFireModeConfigType(): FireModeConfigType {
+  readFireModeConfigSchemaEntry(): FireModeConfigSchemaEntry {
     const variant = this.readU8();
-    if (variant !== 0) {
-      throw new PostcardDecodeError(`invalid FireModeConfigType ${variant}`);
+    if (variant === 0) {
+      const display_name = this.readString();
+      const min = this.readI32();
+      const max = this.readI32();
+      const defaultValue = this.readOption(() => this.readI32());
+      const unit = this.readU8() as FireModeConfigTypeUnit;
+      return {
+        tag: 'Numeric',
+        display_name,
+        min,
+        max,
+        default: defaultValue,
+        unit,
+      };
     }
-    const min = this.readI32();
-    const max = this.readI32();
-    const current = this.readI32();
-    const defaultValue = this.readOption(() => this.readI32());
-    const unit = this.readU8() as FireModeConfigTypeUnit;
-    return {
-      tag: 'Numeric',
-      min,
-      max,
-      current,
-      default: defaultValue,
-      unit,
-    };
+    if (variant === 1) {
+      const display_name = this.readString();
+      const defaultValue = this.readOption(() => this.readBool());
+      return {
+        tag: 'Boolean',
+        display_name,
+        default: defaultValue,
+      };
+    }
+    throw new PostcardDecodeError(`invalid FireModeConfigSchemaEntry ${variant}`);
   }
 
-  readFireModeConfigField(): Record<string, FireModeConfigType> {
+  readFireModeConfigField(): Record<string, FireModeConfigSchemaEntry> {
     const entries = this.readMap(() => {
       const key = this.readString();
-      const value = this.readFireModeConfigType();
+      const value = this.readFireModeConfigSchemaEntry();
       return [key, value] as const;
     });
     return Object.fromEntries(entries);
@@ -168,20 +168,40 @@ export class PostcardReader {
     return this.readVec(() => this.readFireModeConfigField());
   }
 
-  readUpdateFireModeConfigError(): UpdateFireModeConfigError {
+  readFireModeForPositionReply(): { firemode_name: string; config: Record<string, string> } {
+    const firemode_name = this.readString();
+    const config = this.readHashMapStringString();
+    return { firemode_name, config };
+  }
+
+  readSupportedFireModesReply(): string[] {
+    return this.readVec(() => this.readString());
+  }
+
+  readUpdateFireModeConfigResult(): UpdateFireModeConfigError | null {
     const variant = this.readU8();
-    if (variant < 0 || variant > 1) {
-      throw new PostcardDecodeError(`invalid UpdateFireModeConfigError ${variant}`);
+    if (variant === 0) {
+      return null;
     }
-    return variant as UpdateFireModeConfigError;
+    if (variant === 1) {
+      const errVariant = this.readU8();
+      if (errVariant < 0 || errVariant > 1) {
+        throw new PostcardDecodeError(`invalid UpdateFireModeConfigError ${errVariant}`);
+      }
+      return errVariant as UpdateFireModeConfigError;
+    }
+    throw new PostcardDecodeError(`invalid Result tag ${variant}`);
   }
 
   readFcuToHostEvent(): FCUToHostEvent {
     const variant = this.readU8();
     if (variant === 0) {
-      return { tag: 'FireModeChange', firemode: this.readFireMode() };
+      return { tag: 'SelectorPositionChange', position: this.readU32() };
     }
     if (variant === 1) {
+      return { tag: 'FireModeChange', firemode_name: this.readString() };
+    }
+    if (variant === 2) {
       return { tag: 'TriggerPull' };
     }
     throw new PostcardDecodeError(`invalid FCUToHostEvent ${variant}`);
@@ -266,8 +286,13 @@ export class PostcardWriter {
     writeSome(value);
   }
 
-  writeFireMode(value: FireMode): void {
-    this.writeU8(value);
+  writeHashMapStringString(map: Record<string, string>): void {
+    const entries = Object.entries(map);
+    this.writeVarintU32(entries.length);
+    for (const [key, value] of entries) {
+      this.writeString(key);
+      this.writeString(value);
+    }
   }
 
   toUint8Array(): Uint8Array {

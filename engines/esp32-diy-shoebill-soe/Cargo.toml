@@ -23,7 +23,7 @@ esp-idf-svc = { version = "0.51", features = [
   "default",
 ] }
 anyhow = "1.0.100"
+catnip_core = { path = "../../catnip_core" }
 catnip_esp32 = { path = "../../catnip_esp32" }
-
 [build-dependencies]
 embuild = "0.33"

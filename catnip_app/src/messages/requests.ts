@@ -1,5 +1,5 @@
 import { PostcardWriter, uuidStringToBytes } from './codec';
-import { FireMode, HOST_TO_FCU_REQUEST_VARIANT } from './types';
+import { HOST_TO_FCU_REQUEST_VARIANT } from './types';
 
 function writeRequestHeader(
   writer: PostcardWriter,
@@ -16,28 +16,52 @@ export function encodeGetCharacteristicsRequest(messageId: string): Uint8Array {
   return writer.toUint8Array();
 }
 
-export function encodeGetFireModeConfigRequest(
-  messageId: string,
-  firemode: FireMode,
-): Uint8Array {
+export function encodeGetCurrentFireSelectorPositionRequest(messageId: string): Uint8Array {
   const writer = new PostcardWriter();
-  writeRequestHeader(writer, HOST_TO_FCU_REQUEST_VARIANT.GetFireModeConfig, messageId);
-  writer.writeFireMode(firemode);
+  writeRequestHeader(
+    writer,
+    HOST_TO_FCU_REQUEST_VARIANT.GetCurrentFireSelectorPosition,
+    messageId,
+  );
   return writer.toUint8Array();
 }
 
-export function encodeGetCurrentFireModeRequest(messageId: string): Uint8Array {
+export function encodeGetFireModeForPositionRequest(
+  messageId: string,
+  position: number,
+): Uint8Array {
   const writer = new PostcardWriter();
-  writeRequestHeader(writer, HOST_TO_FCU_REQUEST_VARIANT.GetCurrentFireMode, messageId);
+  writeRequestHeader(writer, HOST_TO_FCU_REQUEST_VARIANT.GetFireModeForPosition, messageId);
+  writer.writeU32(position);
+  return writer.toUint8Array();
+}
+
+export function encodeGetSupportedFireModesRequest(messageId: string): Uint8Array {
+  const writer = new PostcardWriter();
+  writeRequestHeader(writer, HOST_TO_FCU_REQUEST_VARIANT.GetSupportedFireModes, messageId);
+  return writer.toUint8Array();
+}
+
+export function encodeGetFireModeConfigFieldsRequest(
+  messageId: string,
+  firemodeName: string,
+): Uint8Array {
+  const writer = new PostcardWriter();
+  writeRequestHeader(writer, HOST_TO_FCU_REQUEST_VARIANT.GetFireModeConfigFields, messageId);
+  writer.writeString(firemodeName);
   return writer.toUint8Array();
 }
 
 export function encodeUpdateFireModeConfigRequest(
   messageId: string,
-  firemode: FireMode,
+  position: number,
+  firemodeName: string,
+  config: Record<string, string>,
 ): Uint8Array {
   const writer = new PostcardWriter();
   writeRequestHeader(writer, HOST_TO_FCU_REQUEST_VARIANT.UpdateFireModeConfig, messageId);
-  writer.writeFireMode(firemode);
+  writer.writeU32(position);
+  writer.writeString(firemodeName);
+  writer.writeHashMapStringString(config);
   return writer.toUint8Array();
 }
