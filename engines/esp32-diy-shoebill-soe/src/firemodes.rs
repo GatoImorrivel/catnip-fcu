@@ -8,7 +8,7 @@ pub struct FullAutoConfig {
         display_name = "Dwell Time",
         min = 1,
         max = 1000,
-        default = 10,
+        default = 50,
         unit = Milliseconds
     )]
     pub dwell_ms: i32,
@@ -16,7 +16,7 @@ pub struct FullAutoConfig {
         display_name = "Delay Time",
         min = 1,
         max = 1000,
-        default = 10,
+        default = 50,
         unit = Milliseconds
     )]
     pub delay_ms: i32,
@@ -28,7 +28,7 @@ pub struct SemiAutoConfig {
         display_name = "Dwell Time",
         min = 1,
         max = 1000,
-        default = 10,
+        default = 50,
         unit = Milliseconds
     )]
     pub dwell_ms: i32,
@@ -36,7 +36,7 @@ pub struct SemiAutoConfig {
         display_name = "Delay Time",
         min = 1,
         max = 1000,
-        default = 10,
+        default = 50,
         unit = Milliseconds
     )]
     pub delay_ms: i32,

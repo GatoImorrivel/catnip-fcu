@@ -5,6 +5,7 @@ pub mod server;
 pub mod storage;
 
 mod bt_transport;
+mod debug_console;
 mod protocol_trace;
 
 pub use bt_transport::{

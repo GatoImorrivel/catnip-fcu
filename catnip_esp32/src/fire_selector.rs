@@ -1,6 +1,5 @@
 use catnip_core::FireSelectorPosition;
-use esp_idf_svc::hal::gpio::{AnyInputPin, Input, InputPin, Level, PinDriver};
-use esp_idf_svc::hal::sys::gpio_set_pull_mode;
+use esp_idf_svc::hal::gpio::{AnyIOPin, Input, IOPin, Level, PinDriver};
 
 pub use esp_idf_svc::hal::gpio::Pull;
 
@@ -13,22 +12,22 @@ pub enum ActiveLevel {
 
 /// One fire-selector input and the GPIO level that counts as active.
 pub struct FireSelectorPin<'d> {
-    pin: PinDriver<'d, AnyInputPin, Input>,
+    pin: PinDriver<'d, AnyIOPin, Input>,
     active_level: ActiveLevel,
 }
 
 impl<'d> FireSelectorPin<'d> {
     pub fn new(
-        pin: impl InputPin + 'd,
+        pin: impl IOPin + 'd,
         active_level: ActiveLevel,
         pull: Pull,
     ) -> anyhow::Result<Self> {
-        esp_idf_svc::hal::sys::esp!(unsafe {
-            gpio_set_pull_mode(pin.pin(), pull.into())
-        })?;
-        let any = pin.downgrade_input();
+        let any = pin.downgrade();
+        let mut driver = PinDriver::input(any)?;
+        driver.set_pull(pull)?;
+
         Ok(Self {
-            pin: PinDriver::input(any)?,
+            pin: driver,
             active_level,
         })
     }

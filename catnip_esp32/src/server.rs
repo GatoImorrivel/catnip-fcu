@@ -10,6 +10,7 @@ use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::modem::Modem;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
 
+use crate::debug_console::DebugConsole;
 use crate::ESP32PositionAssignmentStorage;
 use crate::{BluetoothTransport, BluetoothTransportConfig, CATNIP_FCU_REFERENCE_MANUFACTURER_ID};
 
@@ -17,6 +18,7 @@ pub struct ESP32FCUServer<F: FCU> {
     fcu: F,
     transport: BluetoothTransport,
     storage: ESP32PositionAssignmentStorage,
+    debug_console: DebugConsole,
 }
 
 impl<F: FCU> ESP32FCUServer<F> {
@@ -37,6 +39,7 @@ impl<F: FCU> ESP32FCUServer<F> {
             fcu,
             transport,
             storage,
+            debug_console: DebugConsole::default(),
         })
     }
 
@@ -81,6 +84,7 @@ impl<F: FCU> ESP32FCUServer<F> {
             }
 
             self.poll_transport();
+            self.debug_console.poll(&mut self.fcu);
 
             FreeRtos::delay_ms(1);
         }

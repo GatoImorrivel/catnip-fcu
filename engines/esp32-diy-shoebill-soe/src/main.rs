@@ -7,9 +7,9 @@ use catnip_esp32::{
     server::ESP32FCUServer,
     Characteristics, ESP32PositionAssignmentStorage, FCUKind, FireResult, FireSelector, FCU,
 };
-use esp_idf_svc::hal::gpio::Level;
+use esp_idf_svc::hal::gpio::{Gpio25, Gpio26, Level, Pins};
 use esp_idf_svc::hal::{
-    gpio::{AnyInputPin, AnyOutputPin, Input, InputPin, Output, OutputPin, PinDriver},
+    gpio::{Input, Output, PinDriver},
     peripherals::Peripherals,
 };
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
@@ -36,16 +36,7 @@ fn main() -> anyhow::Result<()> {
     let num_positions = 4;
     fire_modes.load_from_storage(&storage, num_positions)?;
 
-    let fcu = ShoebillSOE {
-        solenoid_pin: PinDriver::output(peripherals.pins.gpio25.downgrade_output())?,
-        trigger_pin: PinDriver::input(peripherals.pins.gpio32.downgrade_input())?,
-        fire_selector: ESP32FireSelector::new([
-            FireSelectorPin::new(peripherals.pins.gpio16, ActiveLevel::Low, Pull::Up)?,
-            FireSelectorPin::new(peripherals.pins.gpio17, ActiveLevel::Low, Pull::Up)?,
-        ]),
-        fire_modes,
-        semi_waiting_release: false,
-    };
+    let fcu = ShoebillSOE::new(peripherals.pins, fire_modes)?;
 
     let modem = peripherals.modem;
     let server = ESP32FCUServer::new(fcu, modem, nvs, storage)?;
@@ -56,14 +47,31 @@ fn main() -> anyhow::Result<()> {
 }
 
 pub struct ShoebillSOE<'d> {
-    solenoid_pin: PinDriver<'d, AnyOutputPin, Output>,
-    trigger_pin: PinDriver<'d, AnyInputPin, Input>,
+    solenoid_pin: PinDriver<'d, Gpio25, Output>,
+    trigger_pin: PinDriver<'d, Gpio26, Input>,
     fire_selector: ESP32FireSelector<'d>,
     fire_modes: FireModePositionTable<FireMode>,
     semi_waiting_release: bool,
 }
 
 impl ShoebillSOE<'_> {
+    pub fn new(pins: Pins, fire_modes: FireModePositionTable<FireMode>) -> anyhow::Result<Self> {
+        let mut trigger_driver = PinDriver::input(pins.gpio26)?;
+        trigger_driver.set_pull(Pull::Up)?;
+        let solenoid_driver = PinDriver::output(pins.gpio25)?;
+
+        Ok(Self {
+            solenoid_pin: solenoid_driver,
+            trigger_pin: trigger_driver,
+            fire_selector: ESP32FireSelector::new([
+                FireSelectorPin::new(pins.gpio18, ActiveLevel::Low, Pull::Up)?,
+                FireSelectorPin::new(pins.gpio19, ActiveLevel::Low, Pull::Up)?,
+            ]),
+            fire_modes,
+            semi_waiting_release: false,
+        })
+    }
+
     fn trigger_pulled(&mut self) -> anyhow::Result<bool> {
         Ok(self.trigger_pin.get_level() == Level::Low)
     }
