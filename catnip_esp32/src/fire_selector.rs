@@ -1,3 +1,4 @@
+use catnip_core::FireSelectorPosition;
 use esp_idf_svc::hal::gpio::{AnyInputPin, Input, InputPin, Level, Pin, PinDriver};
 use esp_idf_svc::hal::sys::gpio_set_pull_mode;
 
@@ -47,8 +48,8 @@ pub struct ESP32FireSelector<'d> {
 }
 
 impl<'d> catnip_core::FireSelector for ESP32FireSelector<'d> {
-    fn read(&self) -> u32 {
-        let mut value = 0u32;
+    fn read(&self) -> FireSelectorPosition {
+        let mut value = 0usize;
         for (i, pin) in self.pins.iter().enumerate() {
             if pin.is_active() {
                 value |= 1 << i;

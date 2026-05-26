@@ -27,3 +27,8 @@ CONFIG_BT_BLE_42_FEATURES_SUPPORTED=y
 CONFIG_BT_BLE_50_FEATURES_SUPPORTED=n
 CONFIG_BT_BTC_TASK_STACK_SIZE=15000
 CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY=y
+
+# NVS flash storage (24 KiB "nvs" partition in partitions_singleapp.csv)
+CONFIG_PARTITION_TABLE_SINGLE_APP=y
+# Persist BLE SMP bond keys (used with esp-idf-svc EspDefaultNvsPartition / BtDriver)
+CONFIG_BT_BLE_SMP_BOND_NVS_FLASH=y

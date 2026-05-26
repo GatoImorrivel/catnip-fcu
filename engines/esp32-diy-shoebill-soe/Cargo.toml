@@ -3,7 +3,6 @@ name = "esp32-diy-shoebill-soe"
 version = "0.1.0"
 authors = ["GatoImorrivel <guilhermevianagui23@gmail.com>"]
 edition = "2021"
-resolver = "2"
 rust-version = "1.77"
 
 [[bin]]
@@ -16,6 +15,7 @@ experimental = ["esp-idf-svc/experimental"]
 
 [dependencies]
 log = "0.4"
+serde = { version = "1" }
 esp-idf-svc = { version = "0.51", features = [
   "std",
   "experimental",

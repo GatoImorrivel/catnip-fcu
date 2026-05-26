@@ -1,10 +1,6 @@
-[build]
-target = "xtensa-esp32-espidf"
-
+# Auto-generated ESP-IDF cfg flags for rust-analyzer.
+# Regenerate: python3 scripts/gen-esp-idf-cfgs.py
 [target.xtensa-esp32-espidf]
-linker = "ldproxy"
-runner = "espflash flash --monitor"
-# ESP-IDF cfg flags (auto-generated; run scripts/gen-esp-idf-cfgs.py to refresh)
 rustflags = [
     '--cfg=espidf_time64',
     '--cfg=esp_idf_adc_cali_efuse_tp_enable',
@@ -613,13 +609,3 @@ rustflags = [
     '--cfg=esp_idf_comp_esp_partition_enabled',
     '--cfg=esp32',
 ]
-
-[unstable]
-build-std = ["std", "panic_abort"]
-
-[env]
-MCU="esp32"
-# Note: this variable is not used by the pio builder (`cargo build --features pio`)
-ESP_IDF_VERSION = "v5.3.3"
-ESP_IDF_SYS_ROOT_CRATE = "catnip_esp32"
-ESP_IDF_SDKCONFIG_DEFAULTS = { value = "../../catnip_esp32/sdkconfig.defaults", relative = true }

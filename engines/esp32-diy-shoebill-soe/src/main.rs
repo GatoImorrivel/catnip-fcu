@@ -1,12 +1,18 @@
+use std::collections::HashMap;
+
 use catnip_esp32::{
-    Characteristics, ESP32FCU, FCUConfig, FCUKind, FireMode, FireModeConfigFields, FireSelector, FireModeConfig,
     fire_selector::{ActiveLevel, ESP32FireSelector, FireSelectorPin, Pull},
+    firemode::FireModeConfig,
     server::ESP32FCUServer,
+    Characteristics, FCUKind, FireSelector, FCU,
 };
-use esp_idf_svc::hal::{gpio::{AnyInputPin, AnyOutputPin, InputPin, OutputPin}, peripherals::Peripherals};
+use esp_idf_svc::hal::{
+    gpio::{AnyInputPin, AnyOutputPin, InputPin, OutputPin},
+    peripherals::Peripherals,
+};
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
 
-use crate::firemodes::SemiAutoConfig;
+use crate::firemodes::{BurstConfig, FireModes, FireModesConfigs, FullAutoConfig, SemiAutoConfig};
 
 mod firemodes;
 
@@ -18,13 +24,13 @@ fn main() -> anyhow::Result<()> {
     let nvs = EspDefaultNvsPartition::take()?;
 
     let fcu = ShoebillSOE {
-        current_firemode: FireMode::Safe,
         solenoid_pin: peripherals.pins.gpio25.downgrade_output(),
         trigger_pin: peripherals.pins.gpio32.downgrade_input(),
         fire_selector: ESP32FireSelector::new([
             FireSelectorPin::new(peripherals.pins.gpio16, ActiveLevel::Low, Pull::Up)?,
             FireSelectorPin::new(peripherals.pins.gpio17, ActiveLevel::Low, Pull::Up)?,
         ]),
+        positions: HashMap::new(),
     };
 
     let modem = peripherals.modem;
@@ -36,47 +42,63 @@ fn main() -> anyhow::Result<()> {
 }
 
 pub struct ShoebillSOE<'a> {
-    current_firemode: FireMode,
     solenoid_pin: AnyOutputPin,
     trigger_pin: AnyInputPin,
     fire_selector: catnip_esp32::fire_selector::ESP32FireSelector<'a>,
+    positions: HashMap<usize, (FireModes, FireModesConfigs)>,
 }
 
-impl FCUConfig for ShoebillSOE<'_> {
+impl FCU for ShoebillSOE<'_> {
+    type FireModes = FireModes;
+    type FireModesConfigs = FireModesConfigs;
+
     fn characteristics(&self) -> Characteristics {
         Characteristics {
             num_fire_positions: self.fire_selector.position_count() as u8,
-            supported_firemodes: [
-                FireMode::Burst,
-                FireMode::FullAuto,
-                FireMode::Safe,
-                FireMode::SemiAuto,
-            ],
-            name: "Shoebill diy".into(),
+            name: "Shoebill SOE ESP32".into(),
             kind: FCUKind::HPA { num_solenoids: 1 },
         }
     }
 
-    fn get_current_firemode(&self) -> FireMode {
-        self.current_firemode
+    fn poll_selector_position(&mut self) -> anyhow::Result<usize> {
+        let pos = self.fire_selector.read();
+        Ok(pos as usize)
     }
 
-    fn get_firemode_config(&self, firemode: FireMode) -> Option<impl FireModeConfig> {
-        Some(SemiAutoConfig {
-           delay_ms: 10, 
-           dwell_ms: 10
-        
-        })
+    fn fire_cycle(
+        &mut self,
+        firemode: Self::FireModes,
+        config: Self::FireModesConfigs,
+        last_shot_instant: std::time::Instant,
+        now: std::time::Instant,
+    ) -> anyhow::Result<catnip_esp32::FireResult>
+    {
+        todo!()
     }
 
-    fn set_firemode(&mut self, firemode: FireMode) -> anyhow::Result<()> {
-        self.current_firemode = firemode;
-        Ok(())
+    fn get_firemode_fields(&self, firemode: Self::FireModes) -> Vec<catnip_esp32::firemode::FireModeConfigField> {
+        todo!()
     }
-}
 
-impl ESP32FCU for ShoebillSOE<'_> {
-    fn routine(&mut self) -> anyhow::Result<()> {
-        Ok(())
+    fn get_firemode_for_position(
+        &self,
+        selector_position: catnip_esp32::FireSelectorPosition,
+    ) -> (Self::FireModes, Self::FireModesConfigs)
+    {
+        todo!()
+    }
+
+    fn get_supported_firemodes(&self) -> Vec<Self::FireModes> {
+        todo!()
+    }
+
+    fn update_firemode_for_position(
+        &mut self,
+        selector_position: catnip_esp32::FireSelectorPosition,
+        firemode: Self::FireModes,
+        config: Self::FireModesConfigs,
+    ) -> anyhow::Result<()>
+    {
+        todo!()
     }
 }

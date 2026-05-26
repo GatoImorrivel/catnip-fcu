@@ -3,6 +3,9 @@ name = "catnip_esp32"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+harness = false  # avoid libtest harness so rust-analyzer can run build scripts
+
 [features]
 default = ["esp-idf-svc/experimental"]
 

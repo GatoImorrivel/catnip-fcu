@@ -1,8 +1,32 @@
 {
+  "rust-analyzer.server.path": "/home/gato/Distrobox/esp32/home/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rust-analyzer",
   "rust-analyzer.linkedProjects": [
-    "Cargo.toml",
-    "catnip_core/Cargo.toml",
-    "catnip_esp32/Cargo.toml",
-    "engines/esp32-diy-shoebill-soe/Cargo.toml"
+    "Cargo.toml"
   ],
+  "rust-analyzer.cargo.buildScripts.enable": true,
+  "rust-analyzer.cargo.allTargets": false,
+  "rust-analyzer.check.allTargets": false,
+  "rust-analyzer.cargo.features": [],
+  "rust-analyzer.cargo.target": "xtensa-esp32-espidf",
+  "rust-analyzer.cargo.extraEnv": {
+    "MCU": "esp32",
+    "ESP_IDF_VERSION": "v5.3.3",
+    "ESP_IDF_SYS_ROOT_CRATE": "catnip_esp32",
+    "ESP_IDF_SDKCONFIG_DEFAULTS": "${workspaceFolder}/catnip_esp32/sdkconfig.defaults"
+  },
+  "rust-analyzer.cargo.extraArgs": [
+    "-Zbuild-std=std,panic_abort"
+  ],
+  "rust-analyzer.check.extraEnv": {
+    "MCU": "esp32",
+    "ESP_IDF_VERSION": "v5.3.3",
+    "ESP_IDF_SYS_ROOT_CRATE": "catnip_esp32",
+    "ESP_IDF_SDKCONFIG_DEFAULTS": "${workspaceFolder}/catnip_esp32/sdkconfig.defaults"
+  },
+  "rust-analyzer.check.extraArgs": [
+    "-Zbuild-std=std,panic_abort"
+  ],
+  "rust-analyzer.check.targets": [
+    "xtensa-esp32-espidf"
+  ]
 }
