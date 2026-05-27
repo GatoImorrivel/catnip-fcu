@@ -29,6 +29,24 @@ export {
   rnTransformAroundPivot,
 } from './fire-selector-pivot-math';
 export {
+  FIRE_SELECTOR_LAYOUT_INSET_RATIO,
+  getFireSelectorAspect,
+  getFireSelectorReplicaConfig,
+  type FireSelectorReplicaConfig,
+} from './fire-selector-replica-config';
+export {
+  buildRotationSamples,
+  computeSweptLayout,
+  computeSweptLayoutForReplica,
+  getDefaultSweptBounds,
+  getRotationSamplesForReplica,
+  maxScaleForContainer,
+  maxScaleForReplica,
+  REFERENCE_GRAPHIC_SCALE,
+  scaleToFitMaxBox,
+  type SweptLayoutResult,
+} from './fire-selector-sweep';
+export {
   getFireSelectorLayout,
   getGunVisualSlotCount,
   getRequiredMappingCount,

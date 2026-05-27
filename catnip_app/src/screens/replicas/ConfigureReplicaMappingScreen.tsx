@@ -178,8 +178,6 @@ export function ConfigureReplicaMappingScreen() {
     );
   }
 
-  const bodyIsFlex = step === 'verifyMapping';
-
   return (
     <Screen style={styles.screen}>
       <View style={styles.header}>
@@ -199,11 +197,17 @@ export function ConfigureReplicaMappingScreen() {
 
       <Text style={[styles.stepTitle, { color: theme.colors.foreground }]}>{stepTitle}</Text>
 
-      <ScrollView
-        style={styles.body}
-        contentContainerStyle={[styles.bodyContent, bodyIsFlex && styles.bodyContentFlex]}
-      >
-        {step === 'mapSelector' ? (
+      {step === 'verifyMapping' ? (
+        <View style={[styles.body, styles.bodyContentFlex]}>
+          <FireSelectorVerifyStep
+            replicaType={replicaType}
+            peripheralId={peripheralId}
+            mapping={selectorPositionMapping}
+          />
+          {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
+        </View>
+      ) : (
+        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           <FireSelectorMappingStep
             replicaType={replicaType}
             metadata={metadata}
@@ -214,18 +218,9 @@ export function ConfigureReplicaMappingScreen() {
             onMappingChange={setSelectorPositionMapping}
             onFcuNumPositionsChange={setFcuNumPositions}
           />
-        ) : null}
-
-        {step === 'verifyMapping' ? (
-          <FireSelectorVerifyStep
-            replicaType={replicaType}
-            peripheralId={peripheralId}
-            mapping={selectorPositionMapping}
-          />
-        ) : null}
-
-        {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
-      </ScrollView>
+          {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
+        </ScrollView>
+      )}
 
       <View style={styles.footer}>
         {step === 'mapSelector' ? (

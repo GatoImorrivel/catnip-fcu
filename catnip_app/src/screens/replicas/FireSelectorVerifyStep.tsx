@@ -1,4 +1,6 @@
-import { LiveFireSelectorPanel } from '@/components/fire-selector/LiveFireSelectorPanel';
+import { StyleSheet, View } from 'react-native';
+
+import { ResponsiveLiveFireSelectorPanel } from '@/components/fire-selector/ResponsiveLiveFireSelectorPanel';
 import type { SelectorPositionMappingEntry } from '@/replicas/selector-mapping';
 import type { ReplicaType } from '@/replicas/types';
 
@@ -14,11 +16,21 @@ export function FireSelectorVerifyStep({
   mapping,
 }: FireSelectorVerifyStepProps) {
   return (
-    <LiveFireSelectorPanel
-      replicaType={replicaType}
-      peripheralId={peripheralId}
-      mapping={mapping}
-      hint="Move your fire selector through each position and confirm the graphic matches your replica."
-    />
+    <View style={styles.container}>
+      <ResponsiveLiveFireSelectorPanel
+        replicaType={replicaType}
+        peripheralId={peripheralId}
+        mapping={mapping}
+        layout="fill"
+        hint="Move your fire selector through each position and confirm the graphic matches your replica."
+      />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    width: '100%',
+  },
+});

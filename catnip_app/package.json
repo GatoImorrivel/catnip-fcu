@@ -31,7 +31,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "node --test scripts/test-fire-selector-graphic-utils.mjs"
   },
   "private": true
 }

@@ -36,6 +36,10 @@ export {
   type UseFireSelectorAssignResult,
 } from './use-fire-selector-assign';
 export {
+  useFireSelectorGraphicSize,
+  type UseFireSelectorGraphicSizeParams,
+} from './use-fire-selector-graphic-size';
+export {
   useFcuFireModeConfigFields,
   useFcuFireModeForPosition,
   useFcuFireSelectorPosition,

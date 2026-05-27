@@ -1,10 +1,13 @@
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AnimatedFireSelectorGraphic } from '@/components/fire-selector/AnimatedFireSelectorGraphic';
 import { useLiveSelectorRotation } from '@/hooks/use-live-selector-rotation';
 import { useTheme } from '@/hooks/use-theme';
+import { getFireSelectorAspect } from '@/replicas/fire-selector-replica-config';
+import { getFireSelectorPivot } from '@/replicas/fire-selector-pivot';
+import { scaleToFitMaxBox } from '@/replicas/fire-selector-sweep';
 import type { SelectorPositionMappingEntry } from '@/replicas/selector-mapping';
 import type { ReplicaType } from '@/replicas/types';
 
@@ -18,13 +21,19 @@ type LiveFireSelectorPanelProps = {
   replicaType: ReplicaType;
   peripheralId: string;
   mapping: SelectorPositionMappingEntry[];
+  /** Explicit graphic height override (px). Prefer `maxGraphicWidth` / `maxGraphicHeight`. */
   graphicSize?: number;
+  /** Max width (px) for the swept selector bounding box; used with `maxGraphicHeight`. */
+  maxGraphicWidth?: number;
+  /** Max height (px) for the swept selector bounding box; used with `maxGraphicWidth`. */
+  maxGraphicHeight?: number;
   hint?: string;
   captionMode?: 'slot' | 'fireMode';
   /** When false, skips BLE fire-mode reads (profile UI supplies the caption). */
   fetchFireModeLabel?: boolean;
-  /** Compact sizes to content so a parent can center the graphic on screen. */
-  layout?: 'default' | 'compact';
+  /** Compact sizes to content; fill gives graphic area flex so a parent can measure it. */
+  layout?: 'default' | 'compact' | 'fill';
+  onGraphicAreaLayout?: (width: number, height: number) => void;
   onPositionContextChange?: (ctx: LiveSelectorBelowGraphicContext) => void;
   renderBelowGraphic?: (ctx: LiveSelectorBelowGraphicContext) => ReactNode;
 };
@@ -34,16 +43,48 @@ export function LiveFireSelectorPanel({
   peripheralId,
   mapping,
   graphicSize,
+  maxGraphicWidth,
+  maxGraphicHeight,
   hint,
   captionMode = 'slot',
   fetchFireModeLabel = true,
   layout = 'default',
+  onGraphicAreaLayout,
   onPositionContextChange,
   renderBelowGraphic,
 }: LiveFireSelectorPanelProps) {
-  const compact = layout === 'compact';
+  const fill = layout === 'fill';
+  const compact = layout === 'compact' || fill;
   const { theme } = useTheme();
-  const size = graphicSize ?? (replicaType === 'M4' ? 200 : 160);
+
+  const sizeFromMaxBox = useMemo(() => {
+    if (
+      maxGraphicWidth === undefined ||
+      maxGraphicHeight === undefined ||
+      maxGraphicWidth <= 0 ||
+      maxGraphicHeight <= 0
+    ) {
+      return 0;
+    }
+    return scaleToFitMaxBox({
+      replicaType,
+      aspect: getFireSelectorAspect(replicaType),
+      pivot: getFireSelectorPivot(replicaType),
+      maxWidth: maxGraphicWidth,
+      maxHeight: maxGraphicHeight,
+    });
+  }, [maxGraphicHeight, maxGraphicWidth, replicaType]);
+
+  const size =
+    graphicSize && graphicSize > 0
+      ? graphicSize
+      : sizeFromMaxBox > 0
+        ? sizeFromMaxBox
+        : fill
+          ? 0
+          : replicaType === 'M4'
+            ? 200
+            : 160;
 
   const {
     rotationDeg,
@@ -106,17 +147,33 @@ export function LiveFireSelectorPanel({
       : null;
 
   return (
-    <View style={[styles.content, compact && styles.contentCompact]}>
+    <View style={[styles.content, compact && !fill && styles.contentCompact, fill && styles.contentFill]}>
       {hint ? (
         <Text style={[styles.hint, { color: theme.colors.muted }]}>{hint}</Text>
       ) : null}
 
-      <View style={[styles.graphicArea, compact && styles.graphicAreaCompact]}>
-        <AnimatedFireSelectorGraphic
-          replicaType={replicaType}
-          rotationDeg={rotationDeg}
-          size={size}
-        />
+      <View
+        style={[
+          styles.graphicArea,
+          compact && !fill && styles.graphicAreaCompact,
+          fill && styles.graphicAreaFill,
+        ]}
+        onLayout={
+          fill
+            ? (event) => {
+                const { width, height } = event.nativeEvent.layout;
+                onGraphicAreaLayout?.(width, height);
+              }
+            : undefined
+        }
+      >
+        {size > 0 ? (
+          <AnimatedFireSelectorGraphic
+            replicaType={replicaType}
+            rotationDeg={rotationDeg}
+            size={size}
+          />
+        ) : null}
       </View>
 
       {showSlotCaption ? (
@@ -160,6 +217,9 @@ const styles = StyleSheet.create({
   contentCompact: {
     flex: 0,
   },
+  contentFill: {
+    flex: 1,
+  },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -184,6 +244,11 @@ const styles = StyleSheet.create({
   graphicAreaCompact: {
     flex: 0,
     minHeight: 0,
+  },
+  graphicAreaFill: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'visible',
   },
   captionRow: {
     flexDirection: 'row',

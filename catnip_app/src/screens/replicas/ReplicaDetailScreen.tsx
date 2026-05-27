@@ -26,6 +26,10 @@ import {
 } from '@/replicas';
 import { Screen } from '@/screens/components';
 
+const LAYOUT_MARGIN = 8;
+const HEADER_HEIGHT_FALLBACK = 48;
+const PROFILE_BLOCK_HEIGHT_FALLBACK = 160;
+
 export function ReplicaDetailScreen() {
   const router = useRouter();
   const { theme } = useTheme();
@@ -50,8 +54,11 @@ export function ReplicaDetailScreen() {
   const [activeFcuPosition, setActiveFcuPosition] = useState<number | null>(null);
   const [selectorReady, setSelectorReady] = useState(false);
   const [selectorUnmapped, setSelectorUnmapped] = useState(false);
+  const [canvasWidth, setCanvasWidth] = useState(0);
   const [canvasHeight, setCanvasHeight] = useState(0);
+  const [headerHeight, setHeaderHeight] = useState(0);
   const [selectorBlockHeight, setSelectorBlockHeight] = useState(0);
+  const [profileBlockHeight, setProfileBlockHeight] = useState(0);
 
   const fcuProfiles = useFcuProfiles(peripheralId);
   const {
@@ -121,7 +128,24 @@ export function ReplicaDetailScreen() {
   );
 
   const hasMapping = selectorPositionMapping.length > 0;
-  const graphicSize = replicaType === 'M4' ? 220 : 180;
+
+  const profileVisible =
+    selectorReady && !selectorUnmapped && activeFcuPosition !== null;
+
+  const measuredHeaderHeight = headerHeight > 0 ? headerHeight : HEADER_HEIGHT_FALLBACK;
+  const profileReserve = profileVisible
+    ? (profileBlockHeight > 0 ? profileBlockHeight : PROFILE_BLOCK_HEIGHT_FALLBACK) +
+      LAYOUT_MARGIN
+    : LAYOUT_MARGIN;
+  const availableTop = measuredHeaderHeight + LAYOUT_MARGIN;
+  const availableBottom = Math.max(availableTop, canvasHeight - profileReserve);
+  const availableHeight = availableBottom - availableTop;
+  const selectorCenterY =
+    canvasHeight > 0 && availableHeight > 0
+      ? availableTop + availableHeight / 2
+      : canvasHeight > 0
+        ? canvasHeight / 2
+        : null;
 
   const profileIdForActivePosition = useCallback(
     (fcuPosition: number) => {
@@ -212,10 +236,9 @@ export function ReplicaDetailScreen() {
     });
   }, [activeFcuPosition, fcuProfiles, profileIdForActivePosition, replicaId, router]);
 
-  const screenCenterY = canvasHeight > 0 ? canvasHeight / 2 : null;
   const selectorBottomY =
-    screenCenterY !== null && selectorBlockHeight > 0
-      ? screenCenterY + selectorBlockHeight / 2
+    selectorCenterY !== null && selectorBlockHeight > 0
+      ? selectorCenterY + selectorBlockHeight / 2
       : null;
   const profileMidpointY =
     canvasHeight > 0 && selectorBottomY !== null
@@ -350,10 +373,17 @@ export function ReplicaDetailScreen() {
       <View
         style={styles.canvas}
         onLayout={(event) => {
-          setCanvasHeight(event.nativeEvent.layout.height);
+          const { width, height } = event.nativeEvent.layout;
+          setCanvasWidth(width);
+          setCanvasHeight(height);
         }}
       >
-        <View style={styles.header}>
+        <View
+          style={styles.header}
+          onLayout={(event) => {
+            setHeaderHeight(event.nativeEvent.layout.height);
+          }}
+        >
           <Pressable
             onPress={exitToReplicasList}
             accessibilityRole="button"
@@ -380,7 +410,7 @@ export function ReplicaDetailScreen() {
             <View
               style={[
                 styles.selectorOverlay,
-                screenCenterY !== null && { top: screenCenterY },
+                selectorCenterY !== null && { top: selectorCenterY },
               ]}
               pointerEvents="box-none"
             >
@@ -393,7 +423,8 @@ export function ReplicaDetailScreen() {
                   replicaType={replicaType}
                   peripheralId={peripheralId}
                   mapping={selectorPositionMapping}
-                  graphicSize={graphicSize}
+                  maxGraphicWidth={canvasWidth > 0 ? canvasWidth : undefined}
+                  maxGraphicHeight={availableHeight > 0 ? availableHeight : undefined}
                   captionMode="fireMode"
                   fetchFireModeLabel={false}
                   layout="compact"
@@ -401,13 +432,13 @@ export function ReplicaDetailScreen() {
                 />
               </View>
             </View>
-            {selectorReady &&
-            !selectorUnmapped &&
-            activeFcuPosition !== null &&
-            profileMidpointY !== null ? (
+            {profileVisible && profileMidpointY !== null ? (
               <View
                 style={[styles.profileOverlay, { top: profileMidpointY }]}
                 pointerEvents="box-none"
+                onLayout={(event) => {
+                  setProfileBlockHeight(event.nativeEvent.layout.height);
+                }}
               >
                 <ProfileAssignmentRow
                   profiles={fcuProfiles.profiles}

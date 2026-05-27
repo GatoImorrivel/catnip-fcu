@@ -18,6 +18,28 @@ export function pivotToPixel(
   };
 }
 
+/** Pivot rotation offsets when the graphic is centered inside a larger layout container. */
+export function pivotTransformInContainer(
+  pivot: FireSelectorPivot,
+  graphicWidth: number,
+  graphicHeight: number,
+  containerWidth: number,
+  containerHeight: number,
+): { tx: number; ty: number; graphicLeft: number; graphicTop: number } {
+  const { px, py } = pivotToPixel(pivot, graphicWidth, graphicHeight);
+  const graphicLeft = (containerWidth - graphicWidth) / 2;
+  const graphicTop = (containerHeight - graphicHeight) / 2;
+  const pivotX = graphicLeft + px;
+  const pivotY = graphicTop + py;
+
+  return {
+    tx: pivotX - containerWidth / 2,
+    ty: pivotY - containerHeight / 2,
+    graphicLeft,
+    graphicTop,
+  };
+}
+
 function rotatePoint(
   x: number,
   y: number,

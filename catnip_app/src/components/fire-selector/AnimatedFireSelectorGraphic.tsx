@@ -8,13 +8,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import type { SvgProps } from 'react-native-svg';
 
-import {
-  fitGraphicInSquare,
-  shortestRotationDelta,
-} from '@/components/fire-selector/fire-selector-graphic-utils';
+import { fitGraphicForReplica, shortestRotationDelta } from '@/components/fire-selector/fire-selector-graphic-utils';
 import { useTheme } from '@/hooks/use-theme';
+import { getFireSelectorAspect } from '@/replicas/fire-selector-replica-config';
 import { getFireSelectorPivot } from '@/replicas/fire-selector-pivot';
-import { pivotToPixel } from '@/replicas/fire-selector-pivot-math';
+import { pivotTransformInContainer } from '@/replicas/fire-selector-pivot-math';
 import type { ReplicaType } from '@/replicas/types';
 
 import M4FireSelector from '../../../assets/m4_style/fire_selector.svg';
@@ -24,9 +22,6 @@ const SELECTOR_SVG: Record<ReplicaType, FC<SvgProps>> = {
   M4: M4FireSelector,
   AK: AkFireSelector,
 };
-
-const M4_ASPECT = 512 / 1024;
-const AK_ASPECT = 176.67398 / 52.871712;
 
 const ROTATION_SPRING = {
   damping: 20,
@@ -50,18 +45,23 @@ export function AnimatedFireSelectorGraphic({
   const { theme } = useTheme();
   const strokeColor = theme.colors.foreground;
   const SvgComponent = SELECTOR_SVG[replicaType];
-  const aspect = replicaType === 'M4' ? M4_ASPECT : AK_ASPECT;
+  const aspect = getFireSelectorAspect(replicaType);
   const pivot = getFireSelectorPivot(replicaType);
-  const { graphicWidth, graphicHeight, containerWidth, containerHeight } = fitGraphicInSquare(
-    aspect,
-    0,
-    size,
-    pivot,
+  const { graphicWidth, graphicHeight, containerWidth, containerHeight } = useMemo(
+    () => fitGraphicForReplica(replicaType, aspect, size, pivot),
+    [aspect, pivot, replicaType, size],
   );
 
-  const pivotOffset = useMemo(
-    () => pivotToPixel(pivot, graphicWidth, graphicHeight),
-    [graphicHeight, graphicWidth, pivot],
+  const { tx, ty, graphicLeft, graphicTop } = useMemo(
+    () =>
+      pivotTransformInContainer(
+        pivot,
+        graphicWidth,
+        graphicHeight,
+        containerWidth,
+        containerHeight,
+      ),
+    [containerHeight, containerWidth, graphicHeight, graphicWidth, pivot],
   );
 
   const animatedRotation = useSharedValue(rotationDeg);
@@ -79,9 +79,6 @@ export function AnimatedFireSelectorGraphic({
   }, [animatedRotation, rotationDeg]);
 
   const animatedStyle = useAnimatedStyle(() => {
-    const tx = pivotOffset.px - graphicWidth / 2;
-    const ty = pivotOffset.py - graphicHeight / 2;
-
     return {
       transform: [
         { translateX: tx },
@@ -91,7 +88,7 @@ export function AnimatedFireSelectorGraphic({
         { translateY: -ty },
       ],
     };
-  }, [graphicHeight, graphicWidth, pivotOffset.px, pivotOffset.py]);
+  }, [tx, ty]);
 
   return (
     <View
@@ -104,7 +101,7 @@ export function AnimatedFireSelectorGraphic({
       <Animated.View
         style={[
           styles.rotated,
-          { width: graphicWidth, height: graphicHeight },
+          { width: containerWidth, height: containerHeight },
           animatedStyle,
         ]}
       >
@@ -113,6 +110,11 @@ export function AnimatedFireSelectorGraphic({
           height={graphicHeight}
           color={strokeColor}
           stroke={strokeColor}
+          style={{
+            position: 'absolute',
+            left: graphicLeft,
+            top: graphicTop,
+          }}
         />
       </Animated.View>
     </View>

@@ -2,10 +2,10 @@ import type { FC } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import type { SvgProps } from 'react-native-svg';
 
-import { fitGraphicInSquare } from '@/components/fire-selector/fire-selector-graphic-utils';
+import { fitGraphicAtRotation } from '@/components/fire-selector/fire-selector-graphic-utils';
 import { useTheme } from '@/hooks/use-theme';
 import { getFireSelectorPivot } from '@/replicas/fire-selector-pivot';
-import { rnTransformAroundPivot } from '@/replicas/fire-selector-pivot-math';
+import { pivotTransformInContainer } from '@/replicas/fire-selector-pivot-math';
 import type { ReplicaType } from '@/replicas/types';
 
 import M4FireSelector from '../../../assets/m4_style/fire_selector.svg';
@@ -15,9 +15,6 @@ const SELECTOR_SVG: Record<ReplicaType, FC<SvgProps>> = {
   M4: M4FireSelector,
   AK: AkFireSelector,
 };
-
-const M4_ASPECT = 512 / 1024;
-const AK_ASPECT = 176.67398 / 52.871712;
 
 type FireSelectorGraphicProps = {
   replicaType: ReplicaType;
@@ -39,13 +36,20 @@ export function FireSelectorGraphic({
   const { theme } = useTheme();
   const strokeColor = strokeColorProp ?? theme.colors.foreground;
   const SvgComponent = SELECTOR_SVG[replicaType];
-  const aspect = replicaType === 'M4' ? M4_ASPECT : AK_ASPECT;
   const pivot = getFireSelectorPivot(replicaType);
-  const { graphicWidth, graphicHeight, containerWidth, containerHeight } = fitGraphicInSquare(
-    aspect,
+  const { graphicWidth, graphicHeight, containerWidth, containerHeight } = fitGraphicAtRotation(
+    replicaType,
     rotationDeg,
     size,
     pivot,
+  );
+
+  const { tx, ty, graphicLeft, graphicTop } = pivotTransformInContainer(
+    pivot,
+    graphicWidth,
+    graphicHeight,
+    containerWidth,
+    containerHeight,
   );
 
   return (
@@ -63,14 +67,15 @@ export function FireSelectorGraphic({
         style={[
           styles.rotated,
           {
-            width: graphicWidth,
-            height: graphicHeight,
-            transform: rnTransformAroundPivot(
-              rotationDeg,
-              pivot,
-              graphicWidth,
-              graphicHeight,
-            ),
+            width: containerWidth,
+            height: containerHeight,
+            transform: [
+              { translateX: tx },
+              { translateY: ty },
+              { rotate: `${rotationDeg}deg` },
+              { translateX: -tx },
+              { translateY: -ty },
+            ],
           },
         ]}
       >
@@ -79,6 +84,11 @@ export function FireSelectorGraphic({
           height={graphicHeight}
           color={strokeColor}
           stroke={strokeColor}
+          style={{
+            position: 'absolute',
+            left: graphicLeft,
+            top: graphicTop,
+          }}
         />
       </View>
     </View>

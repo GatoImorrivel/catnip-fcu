@@ -192,8 +192,6 @@ export function CreateReplicaScreen() {
           ? 'Verify mapping'
           : 'Name replica';
 
-  const bodyIsFlex = step === 'verifyMapping';
-
   return (
     <Screen style={styles.screen}>
       <View style={styles.header}>
@@ -215,9 +213,19 @@ export function CreateReplicaScreen() {
 
       <Text style={[styles.stepTitle, { color: theme.colors.foreground }]}>{stepTitle}</Text>
 
+      {step === 'verifyMapping' ? (
+        <View style={[styles.body, styles.bodyContentFlex]}>
+          <FireSelectorVerifyStep
+            replicaType={type}
+            peripheralId={mac}
+            mapping={selectorPositionMapping}
+          />
+          {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
+        </View>
+      ) : (
       <ScrollView
         style={styles.body}
-        contentContainerStyle={[styles.bodyContent, bodyIsFlex && styles.bodyContentFlex]}
+        contentContainerStyle={styles.bodyContent}
       >
         {step === 'weapon' ? (
           <>
@@ -287,14 +295,6 @@ export function CreateReplicaScreen() {
           />
         ) : null}
 
-        {step === 'verifyMapping' ? (
-          <FireSelectorVerifyStep
-            replicaType={type}
-            peripheralId={mac}
-            mapping={selectorPositionMapping}
-          />
-        ) : null}
-
         {step === 'name' ? (
           <>
             <Text style={[styles.label, { color: theme.colors.muted }]}>Name</Text>
@@ -319,6 +319,7 @@ export function CreateReplicaScreen() {
 
         {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
       </ScrollView>
+      )}
 
       <View style={styles.footer}>
         {step === 'weapon' ? (
