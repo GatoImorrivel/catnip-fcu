@@ -74,6 +74,19 @@ export function buildWireConfigForFcu(
   return result;
 }
 
+export function wireConfigsEqual(
+  schema: FireModeConfigFields,
+  a: Record<string, string>,
+  b: Record<string, string>,
+): boolean {
+  for (const { key } of flattenSchemaFields(schema)) {
+    if ((a[key] ?? '') !== (b[key] ?? '')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function clampNumericWireValue(raw: string, min: number, max: number): string {
   const parsed = Number.parseInt(raw, 10);
   if (Number.isNaN(parsed)) {

@@ -9,7 +9,7 @@ import type {
   FcuProfileId,
   SelectorPositionProfileAssignment,
 } from '@/fcu-profiles';
-import type { UpdateFireModeConfigError } from '@/messages/types';
+import type { FireModeName, UpdateFireModeConfigError } from '@/messages/types';
 
 import { useFcuSaveFireModeAssignment } from './use-fcu-fire-mode';
 
@@ -20,6 +20,11 @@ export type UseProfileFcuSyncResult = {
   pushProfileAtPosition: (
     fcuPosition: number,
     profileId: FcuProfileId,
+  ) => Promise<UpdateFireModeConfigError | null>;
+  pushConfigAtPosition: (
+    fcuPosition: number,
+    firemodeName: FireModeName,
+    config: Record<string, string>,
   ) => Promise<UpdateFireModeConfigError | null>;
   pushAssignmentForPosition: (
     fcuPosition: number,
@@ -82,6 +87,32 @@ export function useProfileFcuSync(fcuId: string | null): UseProfileFcuSyncResult
     [enqueue, fcuId, save],
   );
 
+  const pushConfigAtPosition = useCallback(
+    (fcuPosition: number, firemodeName: FireModeName, config: Record<string, string>) => {
+      if (!fcuId) {
+        const message = 'FCU not connected';
+        setSyncError(message);
+        return Promise.reject(new Error(message));
+      }
+
+      return enqueue(async () => {
+        setSyncError(null);
+        try {
+          const result = await save(fcuPosition, firemodeName, config);
+          if (result !== null) {
+            setSyncError(formatUpdateFireModeConfigError(result));
+          }
+          return result;
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          setSyncError(message);
+          throw err;
+        }
+      });
+    },
+    [enqueue, fcuId, save],
+  );
+
   const pushAssignmentForPosition = useCallback(
     (fcuPosition: number, assignments: SelectorPositionProfileAssignment[]) => {
       if (!fcuId) {
@@ -103,6 +134,7 @@ export function useProfileFcuSync(fcuId: string | null): UseProfileFcuSyncResult
     syncError,
     clearSyncError,
     pushProfileAtPosition,
+    pushConfigAtPosition,
     pushAssignmentForPosition,
   };
 }

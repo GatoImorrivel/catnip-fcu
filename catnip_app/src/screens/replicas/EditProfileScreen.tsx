@@ -1,8 +1,9 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,9 +11,10 @@ import {
   View,
 } from 'react-native';
 
+import { ConfirmModal } from '@/components/fcu-profiles';
 import { FireModeConfigSchemaForm } from '@/components/firemode';
 import { getProfileDisplayName, type FcuProfileId } from '@/fcu-profiles';
-import { buildWireConfigForFcu } from '@/lib/firemode-config-utils';
+import { buildWireConfigForFcu, wireConfigsEqual } from '@/lib/firemode-config-utils';
 import { useCatnipFcu } from '@/hooks/use-catnip-fcu';
 import { useFcuProfiles } from '@/hooks/use-fcu-profiles';
 import { useFcuFireModeConfigFields } from '@/hooks/use-fcu-fire-mode';
@@ -21,6 +23,8 @@ import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
 import { formatFireModeName } from '@/messages/types';
 import { Screen } from '@/screens/components';
+
+const LIVE_PUSH_DEBOUNCE_MS = 400;
 
 function parseFcuPosition(value: string | undefined): number | null {
   if (value === undefined || value === '') {
@@ -32,6 +36,7 @@ function parseFcuPosition(value: string | undefined): number | null {
 
 export function EditProfileScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { theme } = useTheme();
   const { id, profileId: profileIdParam, fcuPosition: fcuPositionParam } = useLocalSearchParams<{
     id?: string;
@@ -51,12 +56,19 @@ export function EditProfileScreen() {
   const { get } = useReplicas();
   const [peripheralId, setPeripheralId] = useState<string | null>(null);
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
+  const [baselineValues, setBaselineValues] = useState<Record<string, string>>({});
   const [schemaInitialized, setSchemaInitialized] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+  const [discardModalOpen, setDiscardModalOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const livePushEnabledRef = useRef(false);
+  const allowLeaveRef = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const fcuProfiles = useFcuProfiles(peripheralId);
-  const { pushProfileAtPosition, syncError } = useProfileFcuSync(peripheralId);
+  const { pushConfigAtPosition, syncError, syncing } = useProfileFcuSync(peripheralId);
   const { client, ready: fcuReady } = useCatnipFcu(peripheralId);
   const profile = profileId ? fcuProfiles.getProfileById(profileId) : undefined;
   const firemodeName = profile?.firemodeName ?? null;
@@ -70,6 +82,29 @@ export function EditProfileScreen() {
   } = useFcuFireModeConfigFields(peripheralId, firemodeName, {
     fetchEnabled: peripheralId !== null && firemodeName !== null,
   });
+
+  const cancelPendingLivePush = useCallback(() => {
+    if (debounceRef.current !== null) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+  }, []);
+
+  const navigateAway = useCallback(() => {
+    allowLeaveRef.current = true;
+    router.replace({
+      pathname: '/replicas/[id]',
+      params: { id: replicaId },
+    });
+  }, [replicaId, router]);
+
+  const isDirty = useMemo(
+    () =>
+      schemaInitialized &&
+      schema != null &&
+      !wireConfigsEqual(schema, configValues, baselineValues),
+    [baselineValues, configValues, schema, schemaInitialized],
+  );
 
   useEffect(() => {
     if (!replicaId) {
@@ -151,9 +186,11 @@ export function EditProfileScreen() {
       }
 
       setConfigValues(values);
+      setBaselineValues(values);
       if (!profile.isDefault) {
         fcuProfiles.updateCustomProfile(profileId!, values);
       }
+      livePushEnabledRef.current = true;
       setSchemaInitialized(true);
     })();
 
@@ -174,40 +211,129 @@ export function EditProfileScreen() {
   useEffect(() => {
     setSchemaInitialized(false);
     setConfigValues({});
-  }, [profileId, firemodeName]);
+    setBaselineValues({});
+    livePushEnabledRef.current = false;
+    allowLeaveRef.current = false;
+    cancelPendingLivePush();
+  }, [cancelPendingLivePush, profileId, firemodeName]);
+
+  useEffect(() => {
+    return () => cancelPendingLivePush();
+  }, [cancelPendingLivePush]);
+
+  const handleValuesChange = useCallback(
+    (next: Record<string, string>) => {
+      setConfigValues(next);
+      if (!livePushEnabledRef.current || !firemodeName || fcuPosition === null) {
+        return;
+      }
+      cancelPendingLivePush();
+      debounceRef.current = setTimeout(() => {
+        debounceRef.current = null;
+        void pushConfigAtPosition(fcuPosition, firemodeName, next);
+      }, LIVE_PUSH_DEBOUNCE_MS);
+    },
+    [cancelPendingLivePush, firemodeName, fcuPosition, pushConfigAtPosition],
+  );
+
+  const requestLeave = useCallback(() => {
+    if (!isDirty) {
+      navigateAway();
+      return;
+    }
+    setDiscardModalOpen(true);
+  }, [isDirty, navigateAway]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+      if (!isDirty || allowLeaveRef.current) {
+        return;
+      }
+      event.preventDefault();
+      setDiscardModalOpen(true);
+    });
+    return unsubscribe;
+  }, [isDirty, navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        requestLeave();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [requestLeave]),
+  );
+
+  const handleDiscard = useCallback(async () => {
+    if (!profileId || !firemodeName || fcuPosition === null) {
+      return;
+    }
+
+    setDiscarding(true);
+    cancelPendingLivePush();
+    livePushEnabledRef.current = false;
+
+    try {
+      setConfigValues(baselineValues);
+      if (profile && !profile.isDefault) {
+        fcuProfiles.updateCustomProfile(profileId, baselineValues);
+      }
+      await pushConfigAtPosition(fcuPosition, firemodeName, baselineValues);
+      setDiscardModalOpen(false);
+      navigateAway();
+    } catch (err: unknown) {
+      setLoadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDiscarding(false);
+    }
+  }, [
+    baselineValues,
+    cancelPendingLivePush,
+    fcuPosition,
+    fcuProfiles,
+    firemodeName,
+    navigateAway,
+    profile,
+    profileId,
+    pushConfigAtPosition,
+  ]);
 
   const handleSave = useCallback(async () => {
-    if (!profileId || !profile || profile.isDefault || fcuPosition === null) {
+    if (!profileId || !profile || profile.isDefault || fcuPosition === null || !firemodeName) {
       return;
     }
 
     setSaving(true);
     setLoadError(null);
+    cancelPendingLivePush();
+    livePushEnabledRef.current = false;
 
     try {
       fcuProfiles.updateCustomProfile(profileId, configValues);
-      const bleError = await pushProfileAtPosition(fcuPosition, profileId);
+      const bleError = await pushConfigAtPosition(fcuPosition, firemodeName, configValues);
       if (bleError !== null) {
+        livePushEnabledRef.current = true;
         return;
       }
-      router.replace({
-        pathname: '/replicas/[id]',
-        params: { id: replicaId },
-      });
+      setBaselineValues(configValues);
+      navigateAway();
     } catch (err: unknown) {
+      livePushEnabledRef.current = true;
       setLoadError(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
   }, [
+    cancelPendingLivePush,
     configValues,
     fcuPosition,
     fcuProfiles,
+    firemodeName,
+    navigateAway,
     profile,
     profileId,
-    pushProfileAtPosition,
-    replicaId,
-    router,
+    pushConfigAtPosition,
   ]);
 
   const displayError = loadError ?? schemaError ?? syncError;
@@ -216,7 +342,9 @@ export function EditProfileScreen() {
       ? 'Connecting to FCU…'
       : schemaLoading
         ? 'Loading config fields from FCU…'
-        : null;
+        : syncing && !saving && !discarding
+          ? 'Updating FCU…'
+          : null;
 
   const canSave =
     Boolean(profile) &&
@@ -225,18 +353,14 @@ export function EditProfileScreen() {
     Boolean(schema) &&
     !schemaLoading &&
     !saving &&
+    !discarding &&
     !displayError;
 
   return (
     <Screen style={styles.screen}>
       <View style={styles.header}>
         <Pressable
-          onPress={() =>
-            router.replace({
-              pathname: '/replicas/[id]',
-              params: { id: replicaId },
-            })
-          }
+          onPress={requestLeave}
           accessibilityRole="button"
           accessibilityLabel="Back to replica"
           hitSlop={8}
@@ -278,7 +402,7 @@ export function EditProfileScreen() {
           <FireModeConfigSchemaForm
             schema={schema}
             values={configValues}
-            onValuesChange={setConfigValues}
+            onValuesChange={handleValuesChange}
           />
         ) : null}
       </ScrollView>
@@ -304,6 +428,17 @@ export function EditProfileScreen() {
           )}
         </Pressable>
       </View>
+
+      <ConfirmModal
+        visible={discardModalOpen}
+        title="Discard unsaved changes?"
+        message="Your edits will be lost and the FCU will be restored to the previous configuration."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        confirming={discarding}
+        onConfirm={() => void handleDiscard()}
+        onCancel={() => setDiscardModalOpen(false)}
+      />
     </Screen>
   );
 }
