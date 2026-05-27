@@ -17,7 +17,10 @@ import {
   upsertPositionProfileAssignment,
   validateProfileName,
 } from '@/fcu-profiles';
+import { defaultWireValuesFromSchema } from '@/lib/firemode-config-utils';
 import { useFcuProfiles } from '@/hooks/use-fcu-profiles';
+import { useFcuFireModeConfigFields } from '@/hooks/use-fcu-fire-mode';
+import { useProfileFcuSync } from '@/hooks/use-profile-fcu-sync';
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
 import { formatFireModeName, type FireModeName } from '@/messages/types';
@@ -57,6 +60,10 @@ export function NewProfileNameScreen() {
   const [creating, setCreating] = useState(false);
 
   const fcuProfiles = useFcuProfiles(peripheralId);
+  const { pushProfileAtPosition, syncError } = useProfileFcuSync(peripheralId);
+  const { data: fireModeSchema } = useFcuFireModeConfigFields(peripheralId, firemodeName, {
+    fetchEnabled: peripheralId !== null && firemodeName !== null,
+  });
 
   useEffect(() => {
     if (!replicaId) {
@@ -132,7 +139,11 @@ export function NewProfileNameScreen() {
 
     try {
       assertUniqueProfileName(peripheralId, trimmedName);
-      const defaultConfig = fcuProfiles.defaultConfigForFireMode(firemodeName);
+      if (!fireModeSchema) {
+        setLoadError('Fire mode schema not loaded from FCU yet');
+        return;
+      }
+      const defaultConfig = defaultWireValuesFromSchema(fireModeSchema);
       const created = fcuProfiles.createCustomProfile(trimmedName, firemodeName, defaultConfig);
 
       const replica = await get(replicaId);
@@ -144,6 +155,11 @@ export function NewProfileNameScreen() {
       );
       await update(replicaId, { selectorPositionProfiles: assignments });
 
+      const bleError = await pushProfileAtPosition(fcuPosition, created.id);
+      if (bleError !== null) {
+        return;
+      }
+
       router.dismissTo({
         pathname: '/replicas/[id]',
         params: { id: replicaId },
@@ -153,6 +169,7 @@ export function NewProfileNameScreen() {
         params: {
           id: replicaId,
           profileId: created.id,
+          fcuPosition: String(fcuPosition),
         },
       });
     } catch (err: unknown) {
@@ -163,10 +180,12 @@ export function NewProfileNameScreen() {
   }, [
     fcuPosition,
     fcuProfiles,
+    fireModeSchema,
     firemodeName,
     get,
     peripheralId,
     profileName,
+    pushProfileAtPosition,
     replicaId,
     router,
     update,
@@ -175,7 +194,9 @@ export function NewProfileNameScreen() {
 
   const canCreate =
     !loadError &&
+    !syncError &&
     !creating &&
+    fireModeSchema !== null &&
     firemodeName !== null &&
     fcuPosition !== null &&
     peripheralId !== null &&
@@ -205,8 +226,10 @@ export function NewProfileNameScreen() {
         </Text>
       ) : null}
 
-      {loadError ? (
-        <Text style={[styles.errorText, { color: theme.colors.primary }]}>{loadError}</Text>
+      {loadError || syncError ? (
+        <Text style={[styles.errorText, { color: theme.colors.primary }]}>
+          {loadError ?? syncError}
+        </Text>
       ) : null}
 
       <Text style={[styles.label, { color: theme.colors.muted }]}>Name</Text>

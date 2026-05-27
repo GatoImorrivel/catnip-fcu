@@ -49,6 +49,32 @@ export function defaultWireValuesFromSchema(
   return values;
 }
 
+/**
+ * Builds a wire config map valid for `UpdateFireModeConfig`: FCU schema defaults
+ * plus profile overrides for known fields only (extras like mock-only keys are dropped).
+ */
+export function buildWireConfigForFcu(
+  schema: FireModeConfigFields,
+  profileOverrides: Record<string, string>,
+): Record<string, string> {
+  const result = defaultWireValuesFromSchema(schema);
+
+  for (const { key, entry } of flattenSchemaFields(schema)) {
+    const override = profileOverrides[key];
+    if (override === undefined) {
+      continue;
+    }
+
+    if (entry.tag === 'Numeric') {
+      result[key] = clampNumericWireValue(override, entry.min, entry.max);
+    } else {
+      result[key] = override === 'true' ? 'true' : 'false';
+    }
+  }
+
+  return result;
+}
+
 export function clampNumericWireValue(raw: string, min: number, max: number): string {
   const parsed = Number.parseInt(raw, 10);
   if (Number.isNaN(parsed)) {

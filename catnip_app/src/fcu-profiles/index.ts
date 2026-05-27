@@ -15,6 +15,13 @@ export {
 } from './mock-store';
 export { loadDefaultProfilesFromFcu } from './sync-default-profiles-from-fcu';
 export {
+  formatUpdateFireModeConfigError,
+  resolveProfileById,
+  resolveProfileForPosition,
+  syncFireModeConfigToFcu,
+  syncProfileToFcu,
+} from './sync-profile-to-fcu';
+export {
   parseSelectorPositionProfiles,
   profileIdForPosition,
   upsertPositionProfileAssignment,

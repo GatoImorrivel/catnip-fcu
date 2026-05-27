@@ -17,6 +17,7 @@ import {
   upsertPositionProfileAssignment,
 } from '@/fcu-profiles';
 import { useFcuProfiles } from '@/hooks/use-fcu-profiles';
+import { useProfileFcuSync } from '@/hooks/use-profile-fcu-sync';
 import { useFcuFireModeConfigFields } from '@/hooks/use-fcu-fire-mode';
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
@@ -67,6 +68,7 @@ export function NewProfileConfigScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const fcuProfiles = useFcuProfiles(peripheralId);
+  const { pushProfileAtPosition, syncError } = useProfileFcuSync(peripheralId);
 
   const {
     data: schema,
@@ -154,6 +156,12 @@ export function NewProfileConfigScreen() {
       );
 
       await update(replicaId, { selectorPositionProfiles: assignments });
+
+      const bleError = await pushProfileAtPosition(fcuPosition, created.id);
+      if (bleError !== null) {
+        return;
+      }
+
       router.replace(`/replicas/${replicaId}`);
     } catch (err: unknown) {
       setLoadError(err instanceof Error ? err.message : String(err));
@@ -168,12 +176,13 @@ export function NewProfileConfigScreen() {
     get,
     peripheralId,
     profileName,
+    pushProfileAtPosition,
     replicaId,
     router,
     update,
   ]);
 
-  const displayError = loadError ?? schemaError;
+  const displayError = loadError ?? schemaError ?? syncError;
   const loadingMessage =
     connectionStatus === 'connecting'
       ? 'Connecting to FCU…'

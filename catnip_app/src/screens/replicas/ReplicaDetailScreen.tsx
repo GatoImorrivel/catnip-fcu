@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ConfirmModal, ProfileAssignmentRow } from '@/components/fcu-profiles';
@@ -15,6 +15,7 @@ import {
   type SelectorPositionProfileAssignment,
 } from '@/fcu-profiles';
 import { useFcuProfiles } from '@/hooks/use-fcu-profiles';
+import { useProfileFcuSync } from '@/hooks/use-profile-fcu-sync';
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -53,6 +54,15 @@ export function ReplicaDetailScreen() {
   const [selectorBlockHeight, setSelectorBlockHeight] = useState(0);
 
   const fcuProfiles = useFcuProfiles(peripheralId);
+  const {
+    syncError,
+    clearSyncError,
+    pushProfileAtPosition,
+    pushAssignmentForPosition,
+  } = useProfileFcuSync(peripheralId);
+
+  const positionAssignmentsRef = useRef(positionAssignments);
+  positionAssignmentsRef.current = positionAssignments;
 
   const persistAssignments = useCallback(
     async (assignments: SelectorPositionProfileAssignment[]) => {
@@ -126,13 +136,36 @@ export function ReplicaDetailScreen() {
 
   const assignProfileToPosition = useCallback(
     (fcuPosition: number, profileId: FcuProfileId) => {
+      clearSyncError();
       setPositionAssignments((prev) => {
         const next = upsertPositionProfileAssignment(prev, fcuPosition, profileId);
         void persistAssignments(next);
+        void pushProfileAtPosition(fcuPosition, profileId);
         return next;
       });
     },
-    [persistAssignments],
+    [clearSyncError, persistAssignments, pushProfileAtPosition],
+  );
+
+  const handlePositionContextChange = useCallback(
+    ({
+      fcuPosition,
+      isUnmapped,
+      ready,
+    }: {
+      fcuPosition: number | null;
+      isUnmapped: boolean;
+      ready: boolean;
+    }) => {
+      setActiveFcuPosition(fcuPosition);
+      setSelectorUnmapped(isUnmapped);
+      setSelectorReady(ready);
+
+      if (ready && !isUnmapped && fcuPosition !== null) {
+        void pushAssignmentForPosition(fcuPosition, positionAssignmentsRef.current);
+      }
+    },
+    [pushAssignmentForPosition],
   );
 
   const handleSelectProfile = useCallback(
@@ -174,6 +207,7 @@ export function ReplicaDetailScreen() {
       params: {
         id: replicaId,
         profileId,
+        fcuPosition: String(activeFcuPosition),
       },
     });
   }, [activeFcuPosition, fcuProfiles, profileIdForActivePosition, replicaId, router]);
@@ -200,6 +234,29 @@ export function ReplicaDetailScreen() {
       });
       return () => subscription.remove();
     }, [exitToReplicasList]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (
+        activeFcuPosition === null ||
+        !selectorReady ||
+        selectorUnmapped ||
+        !peripheralId
+      ) {
+        return;
+      }
+      void pushAssignmentForPosition(
+        activeFcuPosition,
+        positionAssignmentsRef.current,
+      );
+    }, [
+      activeFcuPosition,
+      peripheralId,
+      pushAssignmentForPosition,
+      selectorReady,
+      selectorUnmapped,
+    ]),
   );
 
   const deleteTargetProfile = deleteTargetProfileId
@@ -230,7 +287,7 @@ export function ReplicaDetailScreen() {
     setDeleteTargetProfileId(null);
   }, [deletingProfile]);
 
-  const handleConfirmDeleteProfile = useCallback(() => {
+  const handleConfirmDeleteProfile = useCallback(async () => {
     if (activeFcuPosition === null || !peripheralId || !deleteTargetProfileId) {
       return;
     }
@@ -244,27 +301,33 @@ export function ReplicaDetailScreen() {
 
     setDeletingProfile(true);
     setDeleteProfileError(null);
+    clearSyncError();
 
     try {
       fcuProfiles.deleteCustomProfile(deleteTargetProfileId);
       const fallback =
         listProfiles(peripheralId).find((entry) => entry.isDefault) ??
         listProfiles(peripheralId)[0];
-      setPositionAssignments((prev) => {
-        const withoutDeleted = prev.filter(
-          (entry) => entry.profileId !== deleteTargetProfileId,
-        );
-        const next =
-          fallback !== undefined
-            ? upsertPositionProfileAssignment(
-                withoutDeleted,
-                activeFcuPosition,
-                fallback.id,
-              )
-            : withoutDeleted;
-        void persistAssignments(next);
-        return next;
-      });
+
+      const withoutDeleted = positionAssignmentsRef.current.filter(
+        (entry) => entry.profileId !== deleteTargetProfileId,
+      );
+      const next =
+        fallback !== undefined
+          ? upsertPositionProfileAssignment(
+              withoutDeleted,
+              activeFcuPosition,
+              fallback.id,
+            )
+          : withoutDeleted;
+
+      setPositionAssignments(next);
+      await persistAssignments(next);
+
+      if (fallback !== undefined) {
+        await pushProfileAtPosition(activeFcuPosition, fallback.id);
+      }
+
       setDeleteConfirmOpen(false);
       setDeleteTargetProfileId(null);
     } catch (err: unknown) {
@@ -274,10 +337,12 @@ export function ReplicaDetailScreen() {
     }
   }, [
     activeFcuPosition,
+    clearSyncError,
     deleteTargetProfileId,
     fcuProfiles,
     peripheralId,
     persistAssignments,
+    pushProfileAtPosition,
   ]);
 
   return (
@@ -332,11 +397,7 @@ export function ReplicaDetailScreen() {
                   captionMode="fireMode"
                   fetchFireModeLabel={false}
                   layout="compact"
-                  onPositionContextChange={({ fcuPosition, isUnmapped, ready }) => {
-                    setActiveFcuPosition(fcuPosition);
-                    setSelectorUnmapped(isUnmapped);
-                    setSelectorReady(ready);
-                  }}
+                  onPositionContextChange={handlePositionContextChange}
                 />
               </View>
             </View>
@@ -357,6 +418,11 @@ export function ReplicaDetailScreen() {
                   onPressDelete={handleRequestDeleteProfile}
                   deleting={deletingProfile}
                 />
+                {syncError ? (
+                  <Text style={[styles.deleteError, { color: theme.colors.primary }]}>
+                    {syncError}
+                  </Text>
+                ) : null}
                 {deleteProfileError ? (
                   <Text style={[styles.deleteError, { color: theme.colors.primary }]}>
                     {deleteProfileError}

@@ -10,21 +10,33 @@ import {
   View,
 } from 'react-native';
 
-import { FireModeConfigSchemaForm, defaultWireValuesFromSchema } from '@/components/firemode';
+import { FireModeConfigSchemaForm } from '@/components/firemode';
 import { getProfileDisplayName, type FcuProfileId } from '@/fcu-profiles';
+import { buildWireConfigForFcu } from '@/lib/firemode-config-utils';
+import { useCatnipFcu } from '@/hooks/use-catnip-fcu';
 import { useFcuProfiles } from '@/hooks/use-fcu-profiles';
 import { useFcuFireModeConfigFields } from '@/hooks/use-fcu-fire-mode';
+import { useProfileFcuSync } from '@/hooks/use-profile-fcu-sync';
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
 import { formatFireModeName } from '@/messages/types';
 import { Screen } from '@/screens/components';
 
+function parseFcuPosition(value: string | undefined): number | null {
+  if (value === undefined || value === '') {
+    return null;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
 export function EditProfileScreen() {
   const router = useRouter();
   const { theme } = useTheme();
-  const { id, profileId: profileIdParam } = useLocalSearchParams<{
+  const { id, profileId: profileIdParam, fcuPosition: fcuPositionParam } = useLocalSearchParams<{
     id?: string;
     profileId?: string;
+    fcuPosition?: string;
   }>();
 
   const replicaId = typeof id === 'string' ? id : '';
@@ -32,6 +44,9 @@ export function EditProfileScreen() {
     typeof profileIdParam === 'string' && profileIdParam.length > 0
       ? (profileIdParam as FcuProfileId)
       : null;
+  const fcuPosition = parseFcuPosition(
+    typeof fcuPositionParam === 'string' ? fcuPositionParam : undefined,
+  );
 
   const { get } = useReplicas();
   const [peripheralId, setPeripheralId] = useState<string | null>(null);
@@ -41,6 +56,8 @@ export function EditProfileScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const fcuProfiles = useFcuProfiles(peripheralId);
+  const { pushProfileAtPosition, syncError } = useProfileFcuSync(peripheralId);
+  const { client, ready: fcuReady } = useCatnipFcu(peripheralId);
   const profile = profileId ? fcuProfiles.getProfileById(profileId) : undefined;
   const firemodeName = profile?.firemodeName ?? null;
 
@@ -61,6 +78,10 @@ export function EditProfileScreen() {
     }
     if (!profileId) {
       setLoadError('Missing profile id');
+      return;
+    }
+    if (fcuPosition === null) {
+      setLoadError('Missing selector position');
       return;
     }
 
@@ -88,7 +109,7 @@ export function EditProfileScreen() {
     return () => {
       cancelled = true;
     };
-  }, [get, profileId, replicaId]);
+  }, [fcuPosition, get, profileId, replicaId]);
 
   useEffect(() => {
     if (!profile) {
@@ -100,15 +121,55 @@ export function EditProfileScreen() {
   }, [profile]);
 
   useEffect(() => {
-    if (!schema || !profile || schemaInitialized) {
+    if (
+      !schema ||
+      !profile ||
+      schemaInitialized ||
+      !client ||
+      !fcuReady ||
+      fcuPosition === null
+    ) {
       return;
     }
-    setConfigValues({
-      ...defaultWireValuesFromSchema(schema),
-      ...profile.config,
-    });
-    setSchemaInitialized(true);
-  }, [profile, schema, schemaInitialized]);
+
+    let cancelled = false;
+
+    void (async () => {
+      let sourceConfig = profile.config;
+      try {
+        const positionConfig = await client.getFireModeForPosition(fcuPosition);
+        if (positionConfig.firemode_name === profile.firemodeName) {
+          sourceConfig = positionConfig.config;
+        }
+      } catch {
+        // Fall back to stored profile config.
+      }
+
+      const values = buildWireConfigForFcu(schema, sourceConfig);
+      if (cancelled) {
+        return;
+      }
+
+      setConfigValues(values);
+      if (!profile.isDefault) {
+        fcuProfiles.updateCustomProfile(profileId!, values);
+      }
+      setSchemaInitialized(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    client,
+    fcuPosition,
+    fcuProfiles,
+    fcuReady,
+    profile,
+    profileId,
+    schema,
+    schemaInitialized,
+  ]);
 
   useEffect(() => {
     setSchemaInitialized(false);
@@ -116,7 +177,7 @@ export function EditProfileScreen() {
   }, [profileId, firemodeName]);
 
   const handleSave = useCallback(async () => {
-    if (!profileId || !profile || profile.isDefault) {
+    if (!profileId || !profile || profile.isDefault || fcuPosition === null) {
       return;
     }
 
@@ -125,6 +186,10 @@ export function EditProfileScreen() {
 
     try {
       fcuProfiles.updateCustomProfile(profileId, configValues);
+      const bleError = await pushProfileAtPosition(fcuPosition, profileId);
+      if (bleError !== null) {
+        return;
+      }
       router.replace({
         pathname: '/replicas/[id]',
         params: { id: replicaId },
@@ -134,9 +199,18 @@ export function EditProfileScreen() {
     } finally {
       setSaving(false);
     }
-  }, [configValues, fcuProfiles, profile, profileId, router]);
+  }, [
+    configValues,
+    fcuPosition,
+    fcuProfiles,
+    profile,
+    profileId,
+    pushProfileAtPosition,
+    replicaId,
+    router,
+  ]);
 
-  const displayError = loadError ?? schemaError;
+  const displayError = loadError ?? schemaError ?? syncError;
   const loadingMessage =
     connectionStatus === 'connecting'
       ? 'Connecting to FCU…'
@@ -147,6 +221,7 @@ export function EditProfileScreen() {
   const canSave =
     Boolean(profile) &&
     !profile?.isDefault &&
+    fcuPosition !== null &&
     Boolean(schema) &&
     !schemaLoading &&
     !saving &&

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 
+import { syncFireModeConfigToFcu } from '@/fcu-profiles';
 import type {
   FireModeConfigFields,
   FireModeName,
@@ -85,7 +86,7 @@ export function useFcuUpdateFireModeConfig(
   const result = useFcuRequest(
     peripheralId,
     (client) =>
-      client.updateFireModeConfig(position!, firemodeName!, config ?? {}),
+      syncFireModeConfigToFcu(client, position!, firemodeName!, config ?? {}),
     {
       ...rest,
       fetchEnabled:
@@ -136,7 +137,12 @@ export function useFcuSaveFireModeAssignment(
       setLastError(null);
 
       try {
-        const result = await client.updateFireModeConfig(position, firemodeName, config);
+        const result = await syncFireModeConfigToFcu(
+          client,
+          position,
+          firemodeName,
+          config,
+        );
         if (result !== null) {
           setLastError(result);
         }
