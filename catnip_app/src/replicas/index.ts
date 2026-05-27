@@ -17,6 +17,41 @@ export {
   type ReplicaRepository,
 } from './repository';
 export {
+  getFireSelectorPivot,
+  getConfiguredFireSelectorTypes,
+  CENTER_PIVOT,
+  type FireSelectorPivot,
+} from './fire-selector-pivot';
+export {
+  boundsAfterRotationAroundPivot,
+  cssTransformAroundPivot,
+  pivotToPixel,
+  rnTransformAroundPivot,
+} from './fire-selector-pivot-math';
+export {
+  getFireSelectorLayout,
+  getGunVisualSlotCount,
+  getRequiredMappingCount,
+  getSlotsForMapping,
+  getWeaponActivePositions,
+  needsGunSlotSelection,
+  type FireSelectorLayout,
+  type FireSelectorSlot,
+  type FireSelectorSlotId,
+} from './fire-selector-layout';
+export {
+  getMappingEntryForSlot,
+  hasDuplicateFcuPositions,
+  isGunSlotSelectionComplete,
+  isMappingComplete,
+  lookupUiSlotForFcuPosition,
+  parseSelectorPositionMapping,
+  rotationDegForFcuPosition,
+  slotLabelForFcuPosition,
+  upsertMappingEntry,
+  type SelectorPositionMappingEntry,
+} from './selector-mapping';
+export {
   getWeaponMetadataFields,
   hasWeaponMetadata,
   isWeaponMetadataComplete,

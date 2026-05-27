@@ -13,17 +13,24 @@ import {
 
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
+import type { FireSelectorSlotId } from '@/replicas/fire-selector-layout';
 import {
   getWeaponMetadataFields,
   hasWeaponMetadata,
   isWeaponMetadataComplete,
   type WeaponMetadataValues,
 } from '@/replicas/weapon-metadata';
+import type { SelectorPositionMappingEntry } from '@/replicas/selector-mapping';
 import { REPLICA_TYPES, type ReplicaType } from '@/replicas';
 import { Dropdown } from '@/screens/components/Dropdown';
 import { Screen } from '@/screens/components';
+import {
+  FireSelectorMappingStep,
+  isFireSelectorMappingStepComplete,
+} from '@/screens/replicas/FireSelectorMappingStep';
+import { FireSelectorVerifyStep } from '@/screens/replicas/FireSelectorVerifyStep';
 
-type CreateStep = 'weapon' | 'name';
+type CreateStep = 'weapon' | 'mapSelector' | 'verifyMapping' | 'name';
 
 const WEAPON_TYPE_OPTIONS = REPLICA_TYPES.map((type) => ({ value: type, label: type }));
 
@@ -41,9 +48,14 @@ export function CreateReplicaScreen() {
   const [step, setStep] = useState<CreateStep>('weapon');
   const [type, setType] = useState<ReplicaType>('M4');
   const [metadata, setMetadata] = useState<WeaponMetadataValues>({});
+  const [selectedGunSlotIds, setSelectedGunSlotIds] = useState<FireSelectorSlotId[]>([]);
+  const [selectorPositionMapping, setSelectorPositionMapping] = useState<
+    SelectorPositionMappingEntry[]
+  >([]);
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fcuNumPositions, setFcuNumPositions] = useState(0);
 
   const metadataFields = useMemo(() => getWeaponMetadataFields(type), [type]);
 
@@ -55,21 +67,66 @@ export function CreateReplicaScreen() {
 
   useEffect(() => {
     setMetadata({});
+    setSelectedGunSlotIds([]);
+    setSelectorPositionMapping([]);
+    setFcuNumPositions(0);
   }, [type]);
+
+  useEffect(() => {
+    setSelectedGunSlotIds([]);
+    setSelectorPositionMapping([]);
+    setFcuNumPositions(0);
+  }, [metadata.fireSelectorPositions]);
 
   const weaponStepComplete =
     !hasWeaponMetadata(type) || isWeaponMetadataComplete(type, metadata);
+
+  const mappingStepComplete =
+    fcuNumPositions > 0 &&
+    isFireSelectorMappingStepComplete(
+      type,
+      metadata,
+      fcuNumPositions,
+      selectedGunSlotIds,
+      selectorPositionMapping,
+    );
 
   const handleContinueFromWeapon = useCallback(() => {
     if (!weaponStepComplete) {
       return;
     }
 
-    setStep('name');
+    setStep('mapSelector');
   }, [weaponStepComplete]);
+
+  const handleContinueFromMapping = useCallback(() => {
+    if (!mappingStepComplete) {
+      return;
+    }
+
+    setStep('verifyMapping');
+  }, [mappingStepComplete]);
+
+  const handleContinueFromVerify = useCallback(() => {
+    setStep('name');
+  }, []);
+
+  const handleGoBackFromVerify = useCallback(() => {
+    setStep('mapSelector');
+  }, []);
 
   const handleBack = useCallback(() => {
     if (step === 'name') {
+      setStep('verifyMapping');
+      return;
+    }
+
+    if (step === 'verifyMapping') {
+      setStep('mapSelector');
+      return;
+    }
+
+    if (step === 'mapSelector') {
       setStep('weapon');
       return;
     }
@@ -82,7 +139,7 @@ export function CreateReplicaScreen() {
       return;
     }
 
-    if (!weaponStepComplete) {
+    if (!weaponStepComplete || !mappingStepComplete) {
       return;
     }
 
@@ -96,6 +153,7 @@ export function CreateReplicaScreen() {
         bluetoothMac: mac,
         fcuName: boundFcuName,
         ...metadata,
+        selectorPositionMapping,
       });
       router.replace('/');
     } catch (err: unknown) {
@@ -103,13 +161,33 @@ export function CreateReplicaScreen() {
     } finally {
       setSaving(false);
     }
-  }, [boundFcuName, create, mac, metadata, name, router, type, weaponStepComplete]);
+  }, [
+    boundFcuName,
+    create,
+    mac,
+    mappingStepComplete,
+    metadata,
+    name,
+    router,
+    selectorPositionMapping,
+    type,
+    weaponStepComplete,
+  ]);
 
   if (!mac || !boundFcuName) {
     return null;
   }
 
-  const stepTitle = step === 'weapon' ? 'Weapon type' : 'Name replica';
+  const stepTitle =
+    step === 'weapon'
+      ? 'Weapon type'
+      : step === 'mapSelector'
+        ? 'Map fire selector'
+        : step === 'verifyMapping'
+          ? 'Verify mapping'
+          : 'Name replica';
+
+  const bodyIsFlex = step === 'verifyMapping';
 
   return (
     <Screen style={styles.screen}>
@@ -132,7 +210,10 @@ export function CreateReplicaScreen() {
 
       <Text style={[styles.stepTitle, { color: theme.colors.foreground }]}>{stepTitle}</Text>
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={[styles.bodyContent, bodyIsFlex && styles.bodyContentFlex]}
+      >
         {step === 'weapon' ? (
           <>
             <Dropdown
@@ -188,6 +269,27 @@ export function CreateReplicaScreen() {
           </>
         ) : null}
 
+        {step === 'mapSelector' ? (
+          <FireSelectorMappingStep
+            replicaType={type}
+            metadata={metadata}
+            peripheralId={mac}
+            selectedGunSlotIds={selectedGunSlotIds}
+            mapping={selectorPositionMapping}
+            onSelectedGunSlotsChange={setSelectedGunSlotIds}
+            onMappingChange={setSelectorPositionMapping}
+            onFcuNumPositionsChange={setFcuNumPositions}
+          />
+        ) : null}
+
+        {step === 'verifyMapping' ? (
+          <FireSelectorVerifyStep
+            replicaType={type}
+            peripheralId={mac}
+            mapping={selectorPositionMapping}
+          />
+        ) : null}
+
         {step === 'name' ? (
           <>
             <Text style={[styles.label, { color: theme.colors.muted }]}>Name</Text>
@@ -230,6 +332,58 @@ export function CreateReplicaScreen() {
               Continue
             </Text>
           </Pressable>
+        ) : null}
+
+        {step === 'mapSelector' ? (
+          <Pressable
+            onPress={handleContinueFromMapping}
+            disabled={!mappingStepComplete}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              {
+                backgroundColor: theme.colors.primary,
+                opacity: pressed || !mappingStepComplete ? 0.6 : 1,
+              },
+            ]}
+          >
+            <Text style={[styles.primaryButtonLabel, { color: theme.colors.primaryForeground }]}>
+              Continue
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {step === 'verifyMapping' ? (
+          <View style={styles.footerRow}>
+            <Pressable
+              onPress={handleGoBackFromVerify}
+              style={({ pressed }) => [
+                styles.secondaryButton,
+                {
+                  borderColor: theme.colors.border,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.secondaryButtonLabel, { color: theme.colors.foreground }]}>
+                Go Back
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleContinueFromVerify}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                styles.footerPrimaryHalf,
+                {
+                  backgroundColor: theme.colors.primary,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.primaryButtonLabel, { color: theme.colors.primaryForeground }]}>
+                Continue
+              </Text>
+            </Pressable>
+          </View>
         ) : null}
 
         {step === 'name' ? (
@@ -292,6 +446,29 @@ const styles = StyleSheet.create({
   },
   bodyContent: {
     paddingBottom: 16,
+  },
+  bodyContentFlex: {
+    flexGrow: 1,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  secondaryButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    paddingVertical: 14,
+    minHeight: 48,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  secondaryButtonLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  footerPrimaryHalf: {
+    flex: 1,
   },
   dropdownWithMetadata: {
     marginBottom: 24,

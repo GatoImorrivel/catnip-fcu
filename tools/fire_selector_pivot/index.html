@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fire selector pivot editor</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="header">
+        <h1>Fire selector pivot editor</h1>
+        <p class="subtitle">
+          Tune rotation center per weapon style. Save writes
+          <code>catnip_app/src/replicas/fire-selector-pivots.json</code> (dev server only).
+        </p>
+      </header>
+
+      <div class="toolbar">
+        <label class="field">
+          <span>Weapon style</span>
+          <select id="type-select"></select>
+        </label>
+        <div class="coords" id="coords-readout">x: —, y: —</div>
+      </div>
+
+      <div class="preview-row">
+        <section class="preview-column">
+          <h2 class="column-title">Set pivot</h2>
+          <p class="hint">Click or drag on the graphic to place the pivot crosshair.</p>
+          <div id="editor-root" class="preview-root editor-root"></div>
+        </section>
+        <section class="preview-column">
+          <h2 class="column-title">Rotation preview</h2>
+          <p class="hint">Steps through each selector position in order (~10 s per full cycle).</p>
+          <div id="rotate-root" class="preview-root rotate-root"></div>
+        </section>
+      </div>
+
+      <div class="actions">
+        <button type="button" id="save-pivots" class="primary">Save</button>
+        <button type="button" id="copy-json">Copy JSON</button>
+        <button type="button" id="download-json">Download fire-selector-pivots.json</button>
+        <label class="import-button">
+          Import JSON
+          <input type="file" id="import-file" accept="application/json,.json" hidden />
+        </label>
+      </div>
+
+      <pre class="json-preview" id="json-preview"></pre>
+      <p id="status" class="status" role="status"></p>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

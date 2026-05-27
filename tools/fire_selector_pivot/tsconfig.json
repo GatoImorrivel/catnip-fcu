@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@catnip/pivot-math": ["../../catnip_app/src/replicas/fire-selector-pivot-math.ts"]
+    }
+  },
+  "include": ["src", "../../catnip_app/src/replicas/fire-selector-pivots.json"]
+}

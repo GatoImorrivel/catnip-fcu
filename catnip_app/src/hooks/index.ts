@@ -24,6 +24,15 @@ export {
   type UseFcuCharacteristicsResult,
 } from './use-fcu-characteristics';
 export {
+  useLiveSelectorRotation,
+  type UseLiveSelectorRotationResult,
+} from './use-live-selector-rotation';
+export {
+  useFireSelectorAssign,
+  slotAssignError,
+  type UseFireSelectorAssignResult,
+} from './use-fire-selector-assign';
+export {
   useFcuFireModeConfigFields,
   useFcuFireModeForPosition,
   useFcuFireSelectorPosition,
