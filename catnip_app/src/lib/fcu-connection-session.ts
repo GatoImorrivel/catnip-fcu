@@ -66,7 +66,9 @@ async function openConnection(session: FcuSession, generation: number): Promise<
     const client = await CatnipBleClient.connect(peripheralId);
     if (generation !== session.generation) {
       await client.close();
-      await BleManager.disconnect(peripheralId).catch(() => undefined);
+      if (session.refCount === 0) {
+        await BleManager.disconnect(peripheralId).catch(() => undefined);
+      }
       return;
     }
 
@@ -90,7 +92,15 @@ async function openConnection(session: FcuSession, generation: number): Promise<
   }
 }
 
-async function closeConnection(session: FcuSession): Promise<void> {
+type CloseConnectionOptions = {
+  /** Always disconnect at the native layer (e.g. manual Retry). */
+  forceDisconnect?: boolean;
+};
+
+async function closeConnection(
+  session: FcuSession,
+  options: CloseConnectionOptions = {},
+): Promise<void> {
   session.generation += 1;
   const client = session.client;
   session.client = null;
@@ -102,7 +112,12 @@ async function closeConnection(session: FcuSession): Promise<void> {
   if (client) {
     await client.close();
   }
-  await BleManager.disconnect(session.peripheralId).catch(() => undefined);
+
+  // A screen may re-acquire while teardown is still closing the previous session
+  // (e.g. mapping → verify). Do not drop the native link for the new consumer.
+  if (options.forceDisconnect || session.refCount === 0) {
+    await BleManager.disconnect(session.peripheralId).catch(() => undefined);
+  }
 }
 
 function ensureConnected(session: FcuSession): void {
@@ -119,6 +134,10 @@ function ensureConnected(session: FcuSession): void {
 
 async function teardownSession(session: FcuSession): Promise<void> {
   if (sessions.get(session.peripheralId) !== session) {
+    return;
+  }
+
+  if (session.refCount > 0) {
     return;
   }
 
@@ -172,6 +191,43 @@ export function subscribeFcuSessionEvents(
   };
 }
 
+export function waitForFcuSessionReady(
+  peripheralId: string,
+  timeoutMs = 30_000,
+): Promise<CatnipBleClient> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+
+    const finish = (action: () => void) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      unsubscribe();
+      clearTimeout(timer);
+      action();
+    };
+
+    const check = () => {
+      const snap = getFcuSessionSnapshot(peripheralId);
+      const readyClient = snap.ready ? snap.client : null;
+      if (readyClient) {
+        finish(() => resolve(readyClient));
+        return;
+      }
+      if (snap.status === 'error') {
+        finish(() => reject(new Error(snap.error ?? 'FCU connection failed')));
+      }
+    };
+
+    check();
+    const unsubscribe = subscribeFcuSession(peripheralId, check);
+    const timer = setTimeout(() => {
+      finish(() => reject(new Error('FCU connection timed out')));
+    }, timeoutMs);
+  });
+}
+
 export function getFcuSessionSnapshot(peripheralId: string): {
   status: FcuSessionStatus;
   client: CatnipBleClient | null;
@@ -203,7 +259,7 @@ export function reconnectFcuSession(peripheralId: string): void {
   }
 
   void (async () => {
-    await closeConnection(session);
+    await closeConnection(session, { forceDisconnect: true });
     if (session.refCount === 0) {
       return;
     }

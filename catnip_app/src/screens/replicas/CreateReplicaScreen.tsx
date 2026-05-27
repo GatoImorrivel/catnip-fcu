@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import { loadDefaultProfilesFromFcu } from '@/fcu-profiles';
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
 import type { FireSelectorSlotId } from '@/replicas/fire-selector-layout';
@@ -147,6 +148,8 @@ export function CreateReplicaScreen() {
     setError(null);
 
     try {
+      const assignments = await loadDefaultProfilesFromFcu(mac, selectorPositionMapping);
+
       await create({
         name,
         type,
@@ -154,7 +157,9 @@ export function CreateReplicaScreen() {
         fcuName: boundFcuName,
         ...metadata,
         selectorPositionMapping,
+        selectorPositionProfiles: assignments,
       });
+
       router.replace('/');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));

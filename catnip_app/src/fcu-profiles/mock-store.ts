@@ -9,8 +9,12 @@ import type { FcuProfile, FcuProfileCatalog, FcuProfileId } from './types';
 
 const catalogs = new Map<string, FcuProfileCatalog>();
 
-function defaultProfileId(fcuId: string, firemodeName: FireModeName): string {
+export function getDefaultProfileId(fcuId: string, firemodeName: FireModeName): string {
   return `default:${fcuId}:${firemodeName}`;
+}
+
+function defaultProfileId(fcuId: string, firemodeName: FireModeName): string {
+  return getDefaultProfileId(fcuId, firemodeName);
 }
 
 function seedDefaultProfiles(fcuId: string): FcuProfileCatalog {
@@ -77,6 +81,36 @@ export function removeProfile(fcuId: string, profileId: FcuProfileId): void {
   }
 
   catalog.profiles.splice(index, 1);
+}
+
+export function setDefaultProfileConfig(
+  fcuId: string,
+  firemodeName: FireModeName,
+  config: Record<string, string>,
+): FcuProfile {
+  const catalog = getOrCreateCatalog(fcuId);
+  const index = catalog.profiles.findIndex(
+    (profile) => profile.isDefault && profile.firemodeName === firemodeName,
+  );
+
+  if (index < 0) {
+    const profile: FcuProfile = {
+      id: defaultProfileId(fcuId, firemodeName),
+      name: formatFireModeName(firemodeName),
+      firemodeName,
+      config: { ...config },
+      isDefault: true,
+    };
+    catalog.profiles.push(profile);
+    return profile;
+  }
+
+  const updated: FcuProfile = {
+    ...catalog.profiles[index],
+    config: { ...config },
+  };
+  catalog.profiles[index] = updated;
+  return updated;
 }
 
 export function updateProfile(

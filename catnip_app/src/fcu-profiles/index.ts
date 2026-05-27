@@ -5,12 +5,15 @@ export {
 export {
   addProfile,
   getMockSupportedFireModes,
+  getDefaultProfileId,
   getOrCreateCatalog,
   getProfile,
   listProfiles,
   removeProfile,
+  setDefaultProfileConfig,
   updateProfile,
 } from './mock-store';
+export { loadDefaultProfilesFromFcu } from './sync-default-profiles-from-fcu';
 export {
   parseSelectorPositionProfiles,
   profileIdForPosition,
