@@ -23,11 +23,18 @@ export type UseLiveSelectorRotationResult = {
   reconnect: () => void;
 };
 
+export type UseLiveSelectorRotationOptions = {
+  /** When false, skips `getFireModeForPosition` (e.g. profile picker on detail screen). */
+  fetchFireModeLabel?: boolean;
+};
+
 export function useLiveSelectorRotation(
   peripheralId: string | null,
   replicaType: ReplicaType,
   mapping: SelectorPositionMappingEntry[],
+  options: UseLiveSelectorRotationOptions = {},
 ): UseLiveSelectorRotationResult {
+  const fetchFireModeLabel = options.fetchFireModeLabel ?? true;
   const [rotationDeg, setRotationDeg] = useState(0);
   const [slotLabel, setSlotLabel] = useState<string | null>(null);
   const [isUnmapped, setIsUnmapped] = useState(false);
@@ -89,7 +96,7 @@ export function useLiveSelectorRotation(
   }, [applyFcuPosition, client, ready]);
 
   useEffect(() => {
-    if (!client || !ready || fcuPosition === null || isUnmapped) {
+    if (!fetchFireModeLabel || !client || !ready || fcuPosition === null || isUnmapped) {
       return;
     }
 
@@ -117,7 +124,7 @@ export function useLiveSelectorRotation(
     return () => {
       cancelled = true;
     };
-  }, [client, fcuPosition, isUnmapped, ready]);
+  }, [client, fcuPosition, fetchFireModeLabel, isUnmapped, ready]);
 
   return {
     rotationDeg,

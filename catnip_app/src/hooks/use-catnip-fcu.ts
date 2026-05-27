@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { CatnipBleClient } from '@/lib/catnip-ble-client';
-import { BleManager, ensureBleManagerStarted } from '@/lib/ble-manager';
+import type { CatnipBleClient } from '@/lib/catnip-ble-client';
+import {
+  acquireFcuSession,
+  getFcuSessionSnapshot,
+  reconnectFcuSession,
+  releaseFcuSession,
+  subscribeFcuSession,
+  subscribeFcuSessionEvents,
+  type FcuSessionStatus,
+} from '@/lib/fcu-connection-session';
 import type { FCUToHostEvent } from '@/messages/types';
 import { useBleManager } from './use-ble-manager';
 
-export type CatnipFcuStatus = 'idle' | 'connecting' | 'ready' | 'error';
+export type CatnipFcuStatus = FcuSessionStatus;
 
 export type UseCatnipFcuOptions = {
   /** When false, no connection is attempted. Defaults to true if `peripheralId` is set. */
@@ -39,7 +47,6 @@ export function useCatnipFcu(
   const [lastEvent, setLastEvent] = useState<FCUToHostEvent | null>(null);
   const [connectAttempt, setConnectAttempt] = useState(0);
 
-  const clientRef = useRef<CatnipBleClient | null>(null);
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
 
@@ -63,57 +70,37 @@ export function useCatnipFcu(
     }
 
     const mac = peripheralId;
-    let cancelled = false;
 
-    async function openSession() {
-      setStatus('connecting');
-      setError(null);
-      setClient(null);
+    const syncFromSession = () => {
+      const snapshot = getFcuSessionSnapshot(mac);
+      setStatus(snapshot.status);
+      setClient(snapshot.client);
+      setError(snapshot.error);
+    };
 
-      try {
-        await ensureBleManagerStarted();
-        await BleManager.connect(mac);
-        if (cancelled) {
-          await BleManager.disconnect(mac).catch(() => undefined);
-          return;
-        }
+    syncFromSession();
 
-        const fcuClient = await CatnipBleClient.connect(mac);
-        if (cancelled) {
-          await fcuClient.close();
-          await BleManager.disconnect(mac).catch(() => undefined);
-          return;
-        }
+    const unsubscribeSession = subscribeFcuSession(mac, syncFromSession);
+    const unsubscribeEvents = subscribeFcuSessionEvents(mac, (event) => {
+      setLastEvent(event);
+      onEventRef.current?.(event);
+    });
 
-        fcuClient.onEvent = (event) => {
-          setLastEvent(event);
-          onEventRef.current?.(event);
-        };
-
-        clientRef.current = fcuClient;
-        setClient(fcuClient);
-        setStatus('ready');
-      } catch (err: unknown) {
-        if (cancelled) {
-          return;
-        }
-        setStatus('error');
-        setClient(null);
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    }
-
-    void openSession();
+    acquireFcuSession(mac);
 
     return () => {
-      cancelled = true;
-      const active = clientRef.current;
-      clientRef.current = null;
-      setClient(null);
-      void active?.close();
-      void BleManager.disconnect(mac).catch(() => undefined);
+      unsubscribeSession();
+      unsubscribeEvents();
+      releaseFcuSession(mac);
     };
-  }, [enabled, peripheralId, connectAttempt]);
+  }, [enabled, peripheralId]);
+
+  useEffect(() => {
+    if (!enabled || !peripheralId || connectAttempt === 0) {
+      return;
+    }
+    reconnectFcuSession(peripheralId);
+  }, [connectAttempt, enabled, peripheralId]);
 
   const displayError =
     error ??

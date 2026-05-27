@@ -25,8 +25,10 @@ export {
 } from './use-fcu-characteristics';
 export {
   useLiveSelectorRotation,
+  type UseLiveSelectorRotationOptions,
   type UseLiveSelectorRotationResult,
 } from './use-live-selector-rotation';
+export { useFcuProfiles, type UseFcuProfilesResult } from './use-fcu-profiles';
 export {
   useFireSelectorAssign,
   slotAssignError,

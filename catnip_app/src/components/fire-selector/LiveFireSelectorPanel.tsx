@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+import { useEffect } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AnimatedFireSelectorGraphic } from '@/components/fire-selector/AnimatedFireSelectorGraphic';
@@ -6,6 +8,12 @@ import { useTheme } from '@/hooks/use-theme';
 import type { SelectorPositionMappingEntry } from '@/replicas/selector-mapping';
 import type { ReplicaType } from '@/replicas/types';
 
+export type LiveSelectorBelowGraphicContext = {
+  fcuPosition: number | null;
+  isUnmapped: boolean;
+  ready: boolean;
+};
+
 type LiveFireSelectorPanelProps = {
   replicaType: ReplicaType;
   peripheralId: string;
@@ -13,6 +21,12 @@ type LiveFireSelectorPanelProps = {
   graphicSize?: number;
   hint?: string;
   captionMode?: 'slot' | 'fireMode';
+  /** When false, skips BLE fire-mode reads (profile UI supplies the caption). */
+  fetchFireModeLabel?: boolean;
+  /** Compact sizes to content so a parent can center the graphic on screen. */
+  layout?: 'default' | 'compact';
+  onPositionContextChange?: (ctx: LiveSelectorBelowGraphicContext) => void;
+  renderBelowGraphic?: (ctx: LiveSelectorBelowGraphicContext) => ReactNode;
 };
 
 export function LiveFireSelectorPanel({
@@ -22,7 +36,12 @@ export function LiveFireSelectorPanel({
   graphicSize,
   hint,
   captionMode = 'slot',
+  fetchFireModeLabel = true,
+  layout = 'default',
+  onPositionContextChange,
+  renderBelowGraphic,
 }: LiveFireSelectorPanelProps) {
+  const compact = layout === 'compact';
   const { theme } = useTheme();
   const size = graphicSize ?? (replicaType === 'M4' ? 200 : 160);
 
@@ -33,11 +52,18 @@ export function LiveFireSelectorPanel({
     fireModeLoading,
     fireModeFailed,
     isUnmapped,
+    fcuPosition,
     connectionStatus,
     error,
     ready,
     reconnect,
-  } = useLiveSelectorRotation(peripheralId, replicaType, mapping);
+  } = useLiveSelectorRotation(peripheralId, replicaType, mapping, {
+    fetchFireModeLabel,
+  });
+
+  useEffect(() => {
+    onPositionContextChange?.({ fcuPosition, isUnmapped, ready });
+  }, [fcuPosition, isUnmapped, onPositionContextChange, ready]);
 
   if (connectionStatus === 'connecting' || (!ready && connectionStatus !== 'error')) {
     return (
@@ -72,15 +98,20 @@ export function LiveFireSelectorPanel({
   }
 
   const showSlotCaption = captionMode === 'slot' && slotLabel;
-  const showFireModeCaption = captionMode === 'fireMode' && !isUnmapped;
+  const showFireModeCaption =
+    captionMode === 'fireMode' && !isUnmapped && !renderBelowGraphic && fetchFireModeLabel;
+  const belowGraphic =
+    captionMode === 'fireMode' && renderBelowGraphic
+      ? renderBelowGraphic({ fcuPosition, isUnmapped, ready })
+      : null;
 
   return (
-    <View style={styles.content}>
+    <View style={[styles.content, compact && styles.contentCompact]}>
       {hint ? (
         <Text style={[styles.hint, { color: theme.colors.muted }]}>{hint}</Text>
       ) : null}
 
-      <View style={styles.graphicArea}>
+      <View style={[styles.graphicArea, compact && styles.graphicAreaCompact]}>
         <AnimatedFireSelectorGraphic
           replicaType={replicaType}
           rotationDeg={rotationDeg}
@@ -107,6 +138,10 @@ export function LiveFireSelectorPanel({
         </View>
       ) : null}
 
+      {belowGraphic ? (
+        <View style={styles.belowGraphic}>{belowGraphic}</View>
+      ) : null}
+
       {isUnmapped ? (
         <Text style={[styles.unmapped, { color: theme.colors.muted }]}>
           Unmapped hardware position
@@ -121,6 +156,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     width: '100%',
+  },
+  contentCompact: {
+    flex: 0,
   },
   centered: {
     flex: 1,
@@ -143,6 +181,10 @@ const styles = StyleSheet.create({
     minHeight: 180,
     width: '100%',
   },
+  graphicAreaCompact: {
+    flex: 0,
+    minHeight: 0,
+  },
   captionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -160,6 +202,11 @@ const styles = StyleSheet.create({
   captionInline: {
     fontSize: 18,
     fontWeight: '600',
+  },
+  belowGraphic: {
+    width: '100%',
+    alignItems: 'center',
+    zIndex: 20,
   },
   unmapped: {
     fontSize: 14,

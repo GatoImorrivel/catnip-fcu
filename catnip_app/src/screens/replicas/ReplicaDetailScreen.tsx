@@ -1,9 +1,20 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ConfirmModal, ProfileAssignmentRow } from '@/components/fcu-profiles';
 import { LiveFireSelectorPanel } from '@/components/fire-selector/LiveFireSelectorPanel';
+import {
+  getProfileDisplayName,
+  listProfiles,
+  parseSelectorPositionProfiles,
+  profileIdForPosition,
+  upsertPositionProfileAssignment,
+  type FcuProfileId,
+  type SelectorPositionProfileAssignment,
+} from '@/fcu-profiles';
+import { useFcuProfiles } from '@/hooks/use-fcu-profiles';
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -19,7 +30,7 @@ export function ReplicaDetailScreen() {
   const { theme } = useTheme();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const replicaId = typeof id === 'string' ? id : '';
-  const { get } = useReplicas();
+  const { get, update } = useReplicas();
 
   const [replicaName, setReplicaName] = useState('');
   const [peripheralId, setPeripheralId] = useState<string | null>(null);
@@ -27,7 +38,35 @@ export function ReplicaDetailScreen() {
   const [selectorPositionMapping, setSelectorPositionMapping] = useState<
     SelectorPositionMappingEntry[]
   >([]);
+  const [positionAssignments, setPositionAssignments] = useState<
+    SelectorPositionProfileAssignment[]
+  >([]);
   const [replicaError, setReplicaError] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTargetProfileId, setDeleteTargetProfileId] = useState<FcuProfileId | null>(null);
+  const [deletingProfile, setDeletingProfile] = useState(false);
+  const [deleteProfileError, setDeleteProfileError] = useState<string | null>(null);
+  const [activeFcuPosition, setActiveFcuPosition] = useState<number | null>(null);
+  const [selectorReady, setSelectorReady] = useState(false);
+  const [selectorUnmapped, setSelectorUnmapped] = useState(false);
+  const [canvasHeight, setCanvasHeight] = useState(0);
+  const [selectorBlockHeight, setSelectorBlockHeight] = useState(0);
+
+  const fcuProfiles = useFcuProfiles(peripheralId);
+
+  const persistAssignments = useCallback(
+    async (assignments: SelectorPositionProfileAssignment[]) => {
+      if (!replicaId) {
+        return;
+      }
+      try {
+        await update(replicaId, { selectorPositionProfiles: assignments });
+      } catch {
+        // UI-only phase: keep local state if persistence fails
+      }
+    },
+    [replicaId, update],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -54,6 +93,7 @@ export function ReplicaDetailScreen() {
           setPeripheralId(replica.bluetoothMac);
           setReplicaType(assertReplicaType(replica.type));
           setSelectorPositionMapping(parseSelectorPositionMapping(replica));
+          setPositionAssignments(parseSelectorPositionProfiles(replica));
           setReplicaError(null);
         })
         .catch((err: unknown) => {
@@ -73,39 +113,258 @@ export function ReplicaDetailScreen() {
   const hasMapping = selectorPositionMapping.length > 0;
   const graphicSize = replicaType === 'M4' ? 220 : 180;
 
+  const profileIdForActivePosition = useCallback(
+    (fcuPosition: number) => {
+      return (
+        profileIdForPosition(positionAssignments, fcuPosition) ??
+        fcuProfiles.profiles[0]?.id ??
+        null
+      );
+    },
+    [fcuProfiles.profiles, positionAssignments],
+  );
+
+  const assignProfileToPosition = useCallback(
+    (fcuPosition: number, profileId: FcuProfileId) => {
+      setPositionAssignments((prev) => {
+        const next = upsertPositionProfileAssignment(prev, fcuPosition, profileId);
+        void persistAssignments(next);
+        return next;
+      });
+    },
+    [persistAssignments],
+  );
+
+  const handleSelectProfile = useCallback(
+    (profileId: FcuProfileId) => {
+      if (activeFcuPosition === null) {
+        return;
+      }
+      assignProfileToPosition(activeFcuPosition, profileId);
+    },
+    [activeFcuPosition, assignProfileToPosition],
+  );
+
+  const handleRequestNewProfile = useCallback(() => {
+    if (activeFcuPosition === null || !replicaId) {
+      return;
+    }
+    router.push({
+      pathname: '/replicas/[id]/new-profile',
+      params: {
+        id: replicaId,
+        fcuPosition: String(activeFcuPosition),
+      },
+    });
+  }, [activeFcuPosition, replicaId, router]);
+
+  const handlePressEditProfile = useCallback(() => {
+    if (activeFcuPosition === null || !replicaId) {
+      return;
+    }
+
+    const profileId = profileIdForActivePosition(activeFcuPosition);
+    const profile = fcuProfiles.getProfileById(profileId);
+    if (!profile || profile.isDefault) {
+      return;
+    }
+
+    router.push({
+      pathname: '/replicas/[id]/edit-profile',
+      params: {
+        id: replicaId,
+        profileId,
+      },
+    });
+  }, [activeFcuPosition, fcuProfiles, profileIdForActivePosition, replicaId, router]);
+
+  const screenCenterY = canvasHeight > 0 ? canvasHeight / 2 : null;
+  const selectorBottomY =
+    screenCenterY !== null && selectorBlockHeight > 0
+      ? screenCenterY + selectorBlockHeight / 2
+      : null;
+  const profileMidpointY =
+    canvasHeight > 0 && selectorBottomY !== null
+      ? (selectorBottomY + canvasHeight) / 2
+      : null;
+
+  const exitToReplicasList = useCallback(() => {
+    router.replace('/');
+  }, [router]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        exitToReplicasList();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [exitToReplicasList]),
+  );
+
+  const deleteTargetProfile = deleteTargetProfileId
+    ? fcuProfiles.getProfileById(deleteTargetProfileId)
+    : undefined;
+
+  const handleRequestDeleteProfile = useCallback(() => {
+    if (activeFcuPosition === null) {
+      return;
+    }
+
+    const profileId = profileIdForActivePosition(activeFcuPosition);
+    const profile = fcuProfiles.getProfileById(profileId);
+    if (!profile || profile.isDefault) {
+      return;
+    }
+
+    setDeleteProfileError(null);
+    setDeleteTargetProfileId(profileId);
+    setDeleteConfirmOpen(true);
+  }, [activeFcuPosition, fcuProfiles, profileIdForActivePosition]);
+
+  const handleCancelDeleteProfile = useCallback(() => {
+    if (deletingProfile) {
+      return;
+    }
+    setDeleteConfirmOpen(false);
+    setDeleteTargetProfileId(null);
+  }, [deletingProfile]);
+
+  const handleConfirmDeleteProfile = useCallback(() => {
+    if (activeFcuPosition === null || !peripheralId || !deleteTargetProfileId) {
+      return;
+    }
+
+    const profile = fcuProfiles.getProfileById(deleteTargetProfileId);
+    if (!profile || profile.isDefault) {
+      setDeleteConfirmOpen(false);
+      setDeleteTargetProfileId(null);
+      return;
+    }
+
+    setDeletingProfile(true);
+    setDeleteProfileError(null);
+
+    try {
+      fcuProfiles.deleteCustomProfile(deleteTargetProfileId);
+      const fallback =
+        listProfiles(peripheralId).find((entry) => entry.isDefault) ??
+        listProfiles(peripheralId)[0];
+      setPositionAssignments((prev) => {
+        const withoutDeleted = prev.filter(
+          (entry) => entry.profileId !== deleteTargetProfileId,
+        );
+        const next =
+          fallback !== undefined
+            ? upsertPositionProfileAssignment(
+                withoutDeleted,
+                activeFcuPosition,
+                fallback.id,
+              )
+            : withoutDeleted;
+        void persistAssignments(next);
+        return next;
+      });
+      setDeleteConfirmOpen(false);
+      setDeleteTargetProfileId(null);
+    } catch (err: unknown) {
+      setDeleteProfileError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeletingProfile(false);
+    }
+  }, [
+    activeFcuPosition,
+    deleteTargetProfileId,
+    fcuProfiles,
+    peripheralId,
+    persistAssignments,
+  ]);
+
   return (
     <Screen style={styles.screen}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          hitSlop={8}
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-        >
-          <MaterialIcons name="arrow-back" size={24} color={theme.colors.foreground} />
-        </Pressable>
-        <Text
-          style={[styles.title, { color: theme.colors.foreground }]}
-          numberOfLines={1}
-        >
-          {replicaName || 'Replica'}
-        </Text>
-      </View>
+      <View
+        style={styles.canvas}
+        onLayout={(event) => {
+          setCanvasHeight(event.nativeEvent.layout.height);
+        }}
+      >
+        <View style={styles.header}>
+          <Pressable
+            onPress={exitToReplicasList}
+            accessibilityRole="button"
+            accessibilityLabel="Back to replicas"
+            hitSlop={8}
+            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+          >
+            <MaterialIcons name="arrow-back" size={24} color={theme.colors.foreground} />
+          </Pressable>
+          <Text
+            style={[styles.title, { color: theme.colors.foreground }]}
+            numberOfLines={1}
+          >
+            {replicaName || 'Replica'}
+          </Text>
+        </View>
 
-      {replicaError ? (
-        <Text style={[styles.error, { color: theme.colors.primary }]}>{replicaError}</Text>
-      ) : null}
+        {replicaError ? (
+          <Text style={[styles.error, { color: theme.colors.primary }]}>{replicaError}</Text>
+        ) : null}
 
-      <View style={styles.selectorSection}>
         {hasMapping && replicaType && peripheralId ? (
-          <LiveFireSelectorPanel
-            replicaType={replicaType}
-            peripheralId={peripheralId}
-            mapping={selectorPositionMapping}
-            graphicSize={graphicSize}
-            captionMode="fireMode"
-          />
+          <>
+            <View
+              style={[
+                styles.selectorOverlay,
+                screenCenterY !== null && { top: screenCenterY },
+              ]}
+              pointerEvents="box-none"
+            >
+              <View
+                onLayout={(event) => {
+                  setSelectorBlockHeight(event.nativeEvent.layout.height);
+                }}
+              >
+                <LiveFireSelectorPanel
+                  replicaType={replicaType}
+                  peripheralId={peripheralId}
+                  mapping={selectorPositionMapping}
+                  graphicSize={graphicSize}
+                  captionMode="fireMode"
+                  fetchFireModeLabel={false}
+                  layout="compact"
+                  onPositionContextChange={({ fcuPosition, isUnmapped, ready }) => {
+                    setActiveFcuPosition(fcuPosition);
+                    setSelectorUnmapped(isUnmapped);
+                    setSelectorReady(ready);
+                  }}
+                />
+              </View>
+            </View>
+            {selectorReady &&
+            !selectorUnmapped &&
+            activeFcuPosition !== null &&
+            profileMidpointY !== null ? (
+              <View
+                style={[styles.profileOverlay, { top: profileMidpointY }]}
+                pointerEvents="box-none"
+              >
+                <ProfileAssignmentRow
+                  profiles={fcuProfiles.profiles}
+                  selectedProfileId={profileIdForActivePosition(activeFcuPosition)}
+                  onSelectProfile={handleSelectProfile}
+                  onRequestNewProfile={handleRequestNewProfile}
+                  onPressEdit={handlePressEditProfile}
+                  onPressDelete={handleRequestDeleteProfile}
+                  deleting={deletingProfile}
+                />
+                {deleteProfileError ? (
+                  <Text style={[styles.deleteError, { color: theme.colors.primary }]}>
+                    {deleteProfileError}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+          </>
         ) : (
           <View style={styles.emptyMapping}>
             <Text style={[styles.emptyTitle, { color: theme.colors.foreground }]}>
@@ -139,6 +398,21 @@ export function ReplicaDetailScreen() {
           </View>
         )}
       </View>
+
+      <ConfirmModal
+        visible={deleteConfirmOpen}
+        title="Delete profile?"
+        message={
+          deleteTargetProfile
+            ? `Delete "${getProfileDisplayName(deleteTargetProfile)}"? This cannot be undone.`
+            : 'Delete this profile? This cannot be undone.'
+        }
+        confirmLabel="Delete"
+        confirming={deletingProfile}
+        onConfirm={handleConfirmDeleteProfile}
+        onCancel={handleCancelDeleteProfile}
+      />
+
     </Screen>
   );
 }
@@ -148,10 +422,14 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 8,
+    zIndex: 20,
   },
   backButton: {
     alignItems: 'center',
@@ -168,16 +446,43 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
   },
-  error: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  selectorSection: {
+  canvas: {
     flex: 1,
+    position: 'relative',
     minHeight: 240,
   },
+  error: {
+    position: 'absolute',
+    top: 52,
+    left: 0,
+    right: 0,
+    fontSize: 14,
+    zIndex: 30,
+  },
+  selectorOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    transform: [{ translateY: '-50%' }],
+    zIndex: 5,
+  },
+  profileOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    transform: [{ translateY: '-50%' }],
+    zIndex: 10,
+    gap: 8,
+  },
+  deleteError: {
+    fontSize: 14,
+    textAlign: 'center',
+    paddingHorizontal: 16,
+  },
   emptyMapping: {
-    flex: 1,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
