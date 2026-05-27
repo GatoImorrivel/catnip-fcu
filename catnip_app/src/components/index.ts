@@ -1,5 +1,5 @@
 export {
   SearchableSelect,
-  type SearchableSelectFooterItem,
+  type SearchableSelectHeaderAction,
   type SearchableSelectOption,
 } from './SearchableSelect';

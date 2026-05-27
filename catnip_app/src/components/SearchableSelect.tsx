@@ -22,9 +22,10 @@ export type SearchableSelectOption<T extends string> = {
   searchText?: string;
 };
 
-export type SearchableSelectFooterItem = {
+export type SearchableSelectHeaderAction = {
   key: string;
   onPress: () => void;
+  accessibilityLabel: string;
   render: () => ReactNode;
 };
 
@@ -41,7 +42,7 @@ type SearchableSelectProps<T extends string> = {
   style?: StyleProp<ViewStyle>;
   renderValue?: (option: SearchableSelectOption<T> | null) => ReactNode;
   renderOption?: (option: SearchableSelectOption<T>, selected: boolean) => ReactNode;
-  footerItems?: SearchableSelectFooterItem[];
+  headerActions?: SearchableSelectHeaderAction[];
 };
 
 function normalizeQuery(query: string): string {
@@ -72,7 +73,7 @@ export function SearchableSelect<T extends string>({
   style,
   renderValue,
   renderOption,
-  footerItems = [],
+  headerActions = [],
 }: SearchableSelectProps<T>) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -82,10 +83,20 @@ export function SearchableSelect<T extends string>({
   const selected = options.find((option) => option.value === value) ?? null;
   const normalizedQuery = normalizeQuery(query);
 
-  const filteredOptions = useMemo(
-    () => options.filter((option) => optionMatchesQuery(option, normalizedQuery)),
-    [normalizedQuery, options],
-  );
+  const filteredOptions = useMemo(() => {
+    const matches = options.filter((option) => optionMatchesQuery(option, normalizedQuery));
+    if (!value) {
+      return matches;
+    }
+
+    const selectedIndex = matches.findIndex((option) => option.value === value);
+    if (selectedIndex <= 0) {
+      return matches;
+    }
+
+    const selected = matches[selectedIndex]!;
+    return [selected, ...matches.slice(0, selectedIndex), ...matches.slice(selectedIndex + 1)];
+  }, [normalizedQuery, options, value]);
 
   const openModal = useCallback(() => {
     if (disabled || options.length === 0) {
@@ -165,15 +176,38 @@ export function SearchableSelect<T extends string>({
           >
             <View style={styles.sheetHeader}>
               <Text style={[styles.sheetTitle, { color: theme.colors.foreground }]}>{title}</Text>
-              <Pressable
-                onPress={closeModal}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                style={({ pressed }) => pressed && styles.pressed}
-              >
-                <MaterialIcons name="close" size={24} color={theme.colors.foreground} />
-              </Pressable>
+              <View style={styles.headerActions}>
+                {headerActions.map((item) => (
+                  <Pressable
+                    key={item.key}
+                    onPress={() => {
+                      item.onPress();
+                      closeModal();
+                    }}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.accessibilityLabel}
+                    style={({ pressed }) => [
+                      styles.headerActionButton,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    {item.render()}
+                  </Pressable>
+                ))}
+                <Pressable
+                  onPress={closeModal}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                  style={({ pressed }) => [
+                    styles.headerActionButton,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <MaterialIcons name="close" size={24} color={theme.colors.foreground} />
+                </Pressable>
+              </View>
             </View>
 
             <View
@@ -251,23 +285,6 @@ export function SearchableSelect<T extends string>({
                 );
               }}
             />
-
-            {footerItems.length > 0 ? (
-              <View style={[styles.footer, { borderTopColor: theme.colors.border }]}>
-                {footerItems.map((item) => (
-                  <Pressable
-                    key={item.key}
-                    onPress={() => {
-                      item.onPress();
-                      closeModal();
-                    }}
-                    style={({ pressed }) => [styles.footerItem, pressed && { opacity: 0.85 }]}
-                  >
-                    {item.render()}
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
           </View>
         </View>
       </Modal>
@@ -326,7 +343,19 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     flex: 1,
-    marginRight: 8,
+    marginRight: 12,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  headerActionButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   searchRow: {
     flexDirection: 'row',
@@ -367,15 +396,6 @@ const styles = StyleSheet.create({
   optionBody: {
     flex: 1,
     minWidth: 0,
-  },
-  footer: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    marginTop: 8,
-    paddingTop: 8,
-  },
-  footerItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 4,
   },
   pressed: {
     opacity: 0.7,

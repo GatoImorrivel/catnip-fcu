@@ -62,9 +62,10 @@ export function FireSelectorSlotPicker({
             style={({ pressed }) => [
               styles.tile,
               {
-                borderColor: selected ? theme.colors.primary : theme.colors.border,
-                borderWidth: selected ? 2 : StyleSheet.hairlineWidth,
-                backgroundColor: theme.colors.background,
+                borderColor: theme.colors.border,
+                backgroundColor: selected
+                  ? theme.colors.primary
+                  : theme.colors.background,
                 opacity: pressed ? 0.85 : disabled ? 0.45 : 1,
               },
             ]}
@@ -74,14 +75,19 @@ export function FireSelectorSlotPicker({
                 replicaType={replicaType}
                 rotationDeg={slot.rotationDeg}
                 size={graphicSize}
+                strokeColor={
+                  selected ? theme.colors.primaryForeground : theme.colors.foreground
+                }
               />
             </View>
             <Text
               style={[
                 styles.tileLabel,
                 {
-                  color: selected ? theme.colors.primary : theme.colors.foreground,
-                  fontWeight: selected ? '700' : '600',
+                  color: selected
+                    ? theme.colors.primaryForeground
+                    : theme.colors.foreground,
+                  fontWeight: '600',
                 },
               ]}
             >

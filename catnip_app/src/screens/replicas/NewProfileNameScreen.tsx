@@ -1,12 +1,23 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import {
+  assertUniqueProfileName,
   isProfileNameTaken,
+  parseSelectorPositionProfiles,
+  upsertPositionProfileAssignment,
   validateProfileName,
 } from '@/fcu-profiles';
+import { useFcuProfiles } from '@/hooks/use-fcu-profiles';
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
 import { formatFireModeName, type FireModeName } from '@/messages/types';
@@ -38,11 +49,14 @@ export function NewProfileNameScreen() {
     typeof fcuPositionParam === 'string' ? fcuPositionParam : undefined,
   );
 
-  const { get } = useReplicas();
+  const { get, update } = useReplicas();
   const [peripheralId, setPeripheralId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profileName, setProfileName] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const fcuProfiles = useFcuProfiles(peripheralId);
 
   useEffect(() => {
     if (!replicaId) {
@@ -105,26 +119,67 @@ export function NewProfileNameScreen() {
     return isProfileNameTaken(peripheralId, profileName);
   }, [peripheralId, profileName]);
 
-  const handleContinue = useCallback(() => {
-    const error = validateName(profileName);
-    if (error || fcuPosition === null || !firemodeName) {
+  const handleCreate = useCallback(async () => {
+    const trimmedName = profileName.trim();
+    const error = validateName(trimmedName);
+    if (error || fcuPosition === null || !firemodeName || !peripheralId) {
       setNameError(error);
       return;
     }
 
-    router.push({
-      pathname: '/replicas/[id]/new-profile/config',
-      params: {
-        id: replicaId,
-        firemode: firemodeName,
-        profileName: profileName.trim(),
-        fcuPosition: String(fcuPosition),
-      },
-    });
-  }, [fcuPosition, firemodeName, profileName, replicaId, router, validateName]);
+    setCreating(true);
+    setLoadError(null);
 
-  const canContinue =
-    !loadError && firemodeName !== null && fcuPosition !== null && validateName(profileName) === null;
+    try {
+      assertUniqueProfileName(peripheralId, trimmedName);
+      const defaultConfig = fcuProfiles.defaultConfigForFireMode(firemodeName);
+      const created = fcuProfiles.createCustomProfile(trimmedName, firemodeName, defaultConfig);
+
+      const replica = await get(replicaId);
+      const existing = replica ? parseSelectorPositionProfiles(replica) : [];
+      const assignments = upsertPositionProfileAssignment(
+        existing,
+        fcuPosition,
+        created.id,
+      );
+      await update(replicaId, { selectorPositionProfiles: assignments });
+
+      router.dismissTo({
+        pathname: '/replicas/[id]',
+        params: { id: replicaId },
+      });
+      router.push({
+        pathname: '/replicas/[id]/edit-profile',
+        params: {
+          id: replicaId,
+          profileId: created.id,
+        },
+      });
+    } catch (err: unknown) {
+      setLoadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreating(false);
+    }
+  }, [
+    fcuPosition,
+    fcuProfiles,
+    firemodeName,
+    get,
+    peripheralId,
+    profileName,
+    replicaId,
+    router,
+    update,
+    validateName,
+  ]);
+
+  const canCreate =
+    !loadError &&
+    !creating &&
+    firemodeName !== null &&
+    fcuPosition !== null &&
+    peripheralId !== null &&
+    validateName(profileName) === null;
 
   return (
     <Screen style={styles.screen}>
@@ -135,6 +190,7 @@ export function NewProfileNameScreen() {
           accessibilityLabel="Go back"
           hitSlop={8}
           style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+          disabled={creating}
         >
           <MaterialIcons name="arrow-back" size={24} color={theme.colors.foreground} />
         </Pressable>
@@ -165,6 +221,7 @@ export function NewProfileNameScreen() {
         placeholderTextColor={theme.colors.muted}
         autoCapitalize="words"
         autoCorrect={false}
+        editable={!creating}
         style={[
           styles.input,
           {
@@ -182,25 +239,30 @@ export function NewProfileNameScreen() {
         </Text>
       ) : (
         <Text style={[styles.hint, { color: theme.colors.muted }]}>
-          Must be unique among all profiles, including defaults.
+          Must be unique among all profiles, including defaults. You can configure fields on the
+          next screen.
         </Text>
       )}
 
       <View style={styles.footer}>
         <Pressable
-          onPress={handleContinue}
-          disabled={!canContinue}
+          onPress={() => void handleCreate()}
+          disabled={!canCreate}
           style={({ pressed }) => [
             styles.primaryButton,
             {
               backgroundColor: theme.colors.primary,
-              opacity: pressed || !canContinue ? 0.6 : 1,
+              opacity: pressed || !canCreate ? 0.6 : 1,
             },
           ]}
         >
-          <Text style={[styles.primaryLabel, { color: theme.colors.primaryForeground }]}>
-            Continue
-          </Text>
+          {creating ? (
+            <ActivityIndicator color={theme.colors.primaryForeground} />
+          ) : (
+            <Text style={[styles.primaryLabel, { color: theme.colors.primaryForeground }]}>
+              Create profile
+            </Text>
+          )}
         </Pressable>
       </View>
     </Screen>
@@ -270,6 +332,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
+    minHeight: 48,
   },
   primaryLabel: {
     fontSize: 16,

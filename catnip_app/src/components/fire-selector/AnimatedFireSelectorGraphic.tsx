@@ -12,6 +12,7 @@ import {
   fitGraphicInSquare,
   shortestRotationDelta,
 } from '@/components/fire-selector/fire-selector-graphic-utils';
+import { useTheme } from '@/hooks/use-theme';
 import { getFireSelectorPivot } from '@/replicas/fire-selector-pivot';
 import { pivotToPixel } from '@/replicas/fire-selector-pivot-math';
 import type { ReplicaType } from '@/replicas/types';
@@ -46,6 +47,8 @@ export function AnimatedFireSelectorGraphic({
   size = 180,
   style,
 }: AnimatedFireSelectorGraphicProps) {
+  const { theme } = useTheme();
+  const strokeColor = theme.colors.foreground;
   const SvgComponent = SELECTOR_SVG[replicaType];
   const aspect = replicaType === 'M4' ? M4_ASPECT : AK_ASPECT;
   const pivot = getFireSelectorPivot(replicaType);
@@ -105,7 +108,12 @@ export function AnimatedFireSelectorGraphic({
           animatedStyle,
         ]}
       >
-        <SvgComponent width={graphicWidth} height={graphicHeight} />
+        <SvgComponent
+          width={graphicWidth}
+          height={graphicHeight}
+          color={strokeColor}
+          stroke={strokeColor}
+        />
       </Animated.View>
     </View>
   );

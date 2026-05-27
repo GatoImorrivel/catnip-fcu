@@ -3,6 +3,7 @@ import { StyleSheet, View, type ViewStyle } from 'react-native';
 import type { SvgProps } from 'react-native-svg';
 
 import { fitGraphicInSquare } from '@/components/fire-selector/fire-selector-graphic-utils';
+import { useTheme } from '@/hooks/use-theme';
 import { getFireSelectorPivot } from '@/replicas/fire-selector-pivot';
 import { rnTransformAroundPivot } from '@/replicas/fire-selector-pivot-math';
 import type { ReplicaType } from '@/replicas/types';
@@ -23,6 +24,8 @@ type FireSelectorGraphicProps = {
   rotationDeg: number;
   /** Max width and height of the layout box (graphic fits inside after rotation). */
   size?: number;
+  /** Override stroke color (defaults to theme foreground). */
+  strokeColor?: string;
   style?: ViewStyle;
 };
 
@@ -30,8 +33,11 @@ export function FireSelectorGraphic({
   replicaType,
   rotationDeg,
   size = 120,
+  strokeColor: strokeColorProp,
   style,
 }: FireSelectorGraphicProps) {
+  const { theme } = useTheme();
+  const strokeColor = strokeColorProp ?? theme.colors.foreground;
   const SvgComponent = SELECTOR_SVG[replicaType];
   const aspect = replicaType === 'M4' ? M4_ASPECT : AK_ASPECT;
   const pivot = getFireSelectorPivot(replicaType);
@@ -68,7 +74,12 @@ export function FireSelectorGraphic({
           },
         ]}
       >
-        <SvgComponent width={graphicWidth} height={graphicHeight} />
+        <SvgComponent
+          width={graphicWidth}
+          height={graphicHeight}
+          color={strokeColor}
+          stroke={strokeColor}
+        />
       </View>
     </View>
   );

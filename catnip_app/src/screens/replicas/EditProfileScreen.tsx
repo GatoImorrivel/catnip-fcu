@@ -125,7 +125,10 @@ export function EditProfileScreen() {
 
     try {
       fcuProfiles.updateCustomProfile(profileId, configValues);
-      router.back();
+      router.replace({
+        pathname: '/replicas/[id]',
+        params: { id: replicaId },
+      });
     } catch (err: unknown) {
       setLoadError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -153,9 +156,14 @@ export function EditProfileScreen() {
     <Screen style={styles.screen}>
       <View style={styles.header}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() =>
+            router.replace({
+              pathname: '/replicas/[id]',
+              params: { id: replicaId },
+            })
+          }
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel="Back to replica"
           hitSlop={8}
           style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
         >

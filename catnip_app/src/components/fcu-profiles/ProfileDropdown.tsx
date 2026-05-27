@@ -1,3 +1,4 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useMemo } from 'react';
 import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
@@ -94,14 +95,13 @@ export function ProfileDropdown({
           />
         );
       }}
-      footerItems={[
+      headerActions={[
         {
           key: NEW_PROFILE_OPTION_VALUE,
           onPress: onRequestNewProfile,
+          accessibilityLabel: 'New profile',
           render: () => (
-            <Text style={[styles.newOptionText, { color: theme.colors.primary }]}>
-              New Profile +
-            </Text>
+            <MaterialIcons name="add" size={24} color={theme.colors.foreground} />
           ),
         },
       ]}
@@ -115,9 +115,5 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     fontSize: 16,
-  },
-  newOptionText: {
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
