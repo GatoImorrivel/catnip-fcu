@@ -132,7 +132,7 @@ export class PostcardReader {
       const display_name = this.readString();
       const min = this.readI32();
       const max = this.readI32();
-      const defaultValue = this.readOption(() => this.readI32());
+      const defaultValue = this.readI32();
       const unit = this.readU8() as FireModeConfigTypeUnit;
       return {
         tag: 'Numeric',
@@ -145,7 +145,7 @@ export class PostcardReader {
     }
     if (variant === 1) {
       const display_name = this.readString();
-      const defaultValue = this.readOption(() => this.readBool());
+      const defaultValue = this.readBool();
       return {
         tag: 'Boolean',
         display_name,

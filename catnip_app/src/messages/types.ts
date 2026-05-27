@@ -28,7 +28,7 @@ export type FireModeConfigSchemaNumeric = {
   display_name: string;
   min: number;
   max: number;
-  default: number | null;
+  default: number;
   unit: FireModeConfigTypeUnit;
 };
 
@@ -36,7 +36,7 @@ export type FireModeConfigSchemaNumeric = {
 export type FireModeConfigSchemaBoolean = {
   tag: 'Boolean';
   display_name: string;
-  default: boolean | null;
+  default: boolean;
 };
 
 export type FireModeConfigSchemaEntry =

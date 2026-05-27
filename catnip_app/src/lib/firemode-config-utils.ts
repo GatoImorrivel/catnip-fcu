@@ -40,8 +40,7 @@ export function defaultWireValuesFromSchema(
   const values: Record<string, string> = {};
   for (const { key, entry } of flattenSchemaFields(schema)) {
     if (entry.tag === 'Numeric') {
-      const fallback = entry.default ?? entry.min;
-      values[key] = String(fallback);
+      values[key] = String(entry.default);
     } else {
       values[key] = entry.default === true ? 'true' : 'false';
     }

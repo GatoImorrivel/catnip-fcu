@@ -23,14 +23,14 @@ pub struct FireModeConfigSchema {
     pub display_name: String,
     pub min: i32,
     pub max: i32,
-    pub default: Option<i32>,
+    pub default: i32,
     pub unit: FireModeConfigTypeUnit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FireModeConfigSchemaBool {
     pub display_name: String,
-    pub default: Option<bool>,
+    pub default: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

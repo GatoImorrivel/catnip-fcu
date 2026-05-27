@@ -48,7 +48,6 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let mut try_from_fields = Vec::new();
     let mut from_inserts = Vec::new();
     let mut default_fields = Vec::new();
-    let mut all_have_default = true;
 
     for field in &fields.named {
         let ident = field
@@ -77,19 +76,13 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                 let unit = attrs.unit.ok_or_else(|| {
                     syn::Error::new(field.span(), "i32 fields require #[field(unit = ...)]")
                 })?;
-                let default = match attrs.default_i32 {
-                    Some(d) => quote! { Some(#d) },
-                    None => {
-                        all_have_default = false;
-                        quote! { None }
-                    }
-                };
-                if attrs.default_i32.is_some() {
-                    let d = attrs.default_i32.unwrap();
-                    default_fields.push(quote! { #ident: #d });
-                } else {
-                    all_have_default = false;
-                }
+                let d = attrs.default_i32.ok_or_else(|| {
+                    syn::Error::new(
+                        field.span(),
+                        "i32 fields require #[field(default = ...)]",
+                    )
+                })?;
+                default_fields.push(quote! { #ident: #d });
 
                 shape_entries.push(quote! {
                     {
@@ -101,7 +94,7 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                                     display_name: #display_name.to_string(),
                                     min: #min,
                                     max: #max,
-                                    default: #default,
+                                    default: #d,
                                     unit: ::catnip_core::firemode::FireModeConfigTypeUnit::#unit,
                                 },
                             ),
@@ -119,13 +112,13 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
             }
             FieldKind::Bool(attrs) => {
                 let display_name = &attrs.display_name;
-                let default_bool = attrs.default_bool.unwrap_or(false);
+                let default_bool = attrs.default_bool.ok_or_else(|| {
+                    syn::Error::new(
+                        field.span(),
+                        "bool fields require #[field(default = true/false)]",
+                    )
+                })?;
                 default_fields.push(quote! { #ident: #default_bool });
-                let default = if attrs.default_bool.is_some() {
-                    quote! { Some(#default_bool) }
-                } else {
-                    quote! { Some(false) }
-                };
 
                 shape_entries.push(quote! {
                     {
@@ -135,7 +128,7 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                             ::catnip_core::firemode::FireModeConfigSchemaEntry::Boolean(
                                 ::catnip_core::firemode::FireModeConfigSchemaBool {
                                     display_name: #display_name.to_string(),
-                                    default: #default,
+                                    default: #default_bool,
                                 },
                             ),
                         );
@@ -153,7 +146,9 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
         }
     }
 
-    let default_impl = if all_have_default && !default_fields.is_empty() {
+    let default_impl = if default_fields.is_empty() {
+        quote! {}
+    } else {
         quote! {
             impl ::core::default::Default for #struct_name {
                 fn default() -> Self {
@@ -163,8 +158,6 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                 }
             }
         }
-    } else {
-        quote! {}
     };
 
     Ok(quote! {
