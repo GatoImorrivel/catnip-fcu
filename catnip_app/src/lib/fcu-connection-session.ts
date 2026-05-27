@@ -1,4 +1,4 @@
-import type { FCUToHostEvent } from '@/messages/types';
+import type { Characteristics, FCUToHostEvent } from '@/messages/types';
 
 import { CatnipBleClient } from './catnip-ble-client';
 import { BleManager, ensureBleManagerStarted } from './ble-manager';
@@ -12,10 +12,16 @@ type FcuSession = {
   client: CatnipBleClient | null;
   error: string | null;
   connectPromise: Promise<void> | null;
+  characteristics: Characteristics | null;
+  characteristicsError: string | null;
+  characteristicsPromise: Promise<Characteristics> | null;
   listeners: Set<() => void>;
   eventListeners: Set<(event: FCUToHostEvent) => void>;
   generation: number;
 };
+
+/** Holds {@link acquireFcuSession} for the new-replica flow until {@link releaseReplicaCreationSession}. */
+let replicaCreationPeripheralId: string | null = null;
 
 const sessions = new Map<string, FcuSession>();
 
@@ -29,6 +35,9 @@ function getOrCreateSession(peripheralId: string): FcuSession {
       client: null,
       error: null,
       connectPromise: null,
+      characteristics: null,
+      characteristicsError: null,
+      characteristicsPromise: null,
       listeners: new Set(),
       eventListeners: new Set(),
       generation: 0,
@@ -97,6 +106,12 @@ type CloseConnectionOptions = {
   forceDisconnect?: boolean;
 };
 
+function clearSessionCharacteristics(session: FcuSession): void {
+  session.characteristics = null;
+  session.characteristicsError = null;
+  session.characteristicsPromise = null;
+}
+
 async function closeConnection(
   session: FcuSession,
   options: CloseConnectionOptions = {},
@@ -107,6 +122,7 @@ async function closeConnection(
   session.status = 'idle';
   session.error = null;
   session.connectPromise = null;
+  clearSessionCharacteristics(session);
   emit(session);
 
   if (client) {
@@ -191,43 +207,6 @@ export function subscribeFcuSessionEvents(
   };
 }
 
-export function waitForFcuSessionReady(
-  peripheralId: string,
-  timeoutMs = 30_000,
-): Promise<CatnipBleClient> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-
-    const finish = (action: () => void) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      unsubscribe();
-      clearTimeout(timer);
-      action();
-    };
-
-    const check = () => {
-      const snap = getFcuSessionSnapshot(peripheralId);
-      const readyClient = snap.ready ? snap.client : null;
-      if (readyClient) {
-        finish(() => resolve(readyClient));
-        return;
-      }
-      if (snap.status === 'error') {
-        finish(() => reject(new Error(snap.error ?? 'FCU connection failed')));
-      }
-    };
-
-    check();
-    const unsubscribe = subscribeFcuSession(peripheralId, check);
-    const timer = setTimeout(() => {
-      finish(() => reject(new Error('FCU connection timed out')));
-    }, timeoutMs);
-  });
-}
-
 export function getFcuSessionSnapshot(peripheralId: string): {
   status: FcuSessionStatus;
   client: CatnipBleClient | null;
@@ -252,6 +231,45 @@ export function getFcuSessionSnapshot(peripheralId: string): {
   };
 }
 
+export function waitForFcuSessionReady(
+  peripheralId: string,
+  timeoutMs = 30_000,
+): Promise<CatnipBleClient> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let unsubscribe: () => void = () => undefined;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const finish = (action: () => void) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      unsubscribe();
+      clearTimeout(timer);
+      action();
+    };
+
+    const check = () => {
+      const snap = getFcuSessionSnapshot(peripheralId);
+      const readyClient = snap.ready ? snap.client : null;
+      if (readyClient) {
+        finish(() => resolve(readyClient));
+        return;
+      }
+      if (snap.status === 'error') {
+        finish(() => reject(new Error(snap.error ?? 'FCU connection failed')));
+      }
+    };
+
+    unsubscribe = subscribeFcuSession(peripheralId, check);
+    timer = setTimeout(() => {
+      finish(() => reject(new Error('FCU connection timed out')));
+    }, timeoutMs);
+    check();
+  });
+}
+
 export function reconnectFcuSession(peripheralId: string): void {
   const session = sessions.get(peripheralId);
   if (!session || session.refCount === 0) {
@@ -268,6 +286,98 @@ export function reconnectFcuSession(peripheralId: string): void {
   })();
 }
 
+export function getFcuSessionCharacteristics(peripheralId: string): Characteristics | null {
+  return sessions.get(peripheralId)?.characteristics ?? null;
+}
+
+export async function ensureFcuSessionCharacteristics(
+  peripheralId: string,
+): Promise<Characteristics> {
+  const session = getOrCreateSession(peripheralId);
+
+  if (session.characteristics) {
+    return session.characteristics;
+  }
+
+  if (session.characteristicsPromise) {
+    return session.characteristicsPromise;
+  }
+
+  session.characteristicsPromise = (async () => {
+    try {
+      await waitForFcuSessionReady(peripheralId);
+      const current = sessions.get(peripheralId);
+      const client = current?.client;
+      if (!client) {
+        throw new Error('FCU not connected');
+      }
+
+      const characteristics = await client.getCharacteristics();
+      if (current) {
+        current.characteristics = characteristics;
+        current.characteristicsError = null;
+        emit(current);
+      }
+      return characteristics;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      const current = sessions.get(peripheralId);
+      if (current) {
+        current.characteristicsError = message;
+        emit(current);
+      }
+      throw err;
+    } finally {
+      const current = sessions.get(peripheralId);
+      if (current) {
+        current.characteristicsPromise = null;
+      }
+    }
+  })();
+
+  return session.characteristicsPromise;
+}
+
+/**
+ * Connects and reads characteristics on the Pair FCU screen; keeps the session alive
+ * for {@link CreateReplicaScreen} until {@link releaseReplicaCreationSession}.
+ */
+export function retainReplicaCreationSession(peripheralId: string): void {
+  if (replicaCreationPeripheralId && replicaCreationPeripheralId !== peripheralId) {
+    releaseFcuSession(replicaCreationPeripheralId);
+  }
+  replicaCreationPeripheralId = peripheralId;
+  acquireFcuSession(peripheralId);
+}
+
+export function releaseReplicaCreationSession(): void {
+  if (!replicaCreationPeripheralId) {
+    return;
+  }
+  const peripheralId = replicaCreationPeripheralId;
+  replicaCreationPeripheralId = null;
+  releaseFcuSession(peripheralId);
+}
+
+export function getReplicaCreationPeripheralId(): string | null {
+  return replicaCreationPeripheralId;
+}
+
+/**
+ * Pair-FCU entry point: holds the session, waits for GATT, reads characteristics once.
+ * Caller should stop scanning before invoking.
+ */
+export async function prepareReplicaCreationFcu(peripheralId: string): Promise<Characteristics> {
+  retainReplicaCreationSession(peripheralId);
+  await waitForFcuSessionReady(peripheralId);
+  const characteristics = await ensureFcuSessionCharacteristics(peripheralId);
+  if (characteristics.num_fire_positions <= 0) {
+    throw new Error('FCU reported no fire selector positions');
+  }
+  return characteristics;
+}
+
 export function clearFcuSessionsForTests(): void {
   sessions.clear();
+  replicaCreationPeripheralId = null;
 }

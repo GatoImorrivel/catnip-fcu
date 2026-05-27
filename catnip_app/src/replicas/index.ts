@@ -25,8 +25,10 @@ export {
 export {
   boundsAfterRotationAroundPivot,
   cssTransformAroundPivot,
+  graphicOffsetForPivotRotation,
   pivotToPixel,
   rnTransformAroundPivot,
+  rotatedAabbAroundPivot,
 } from './fire-selector-pivot-math';
 export {
   FIRE_SELECTOR_LAYOUT_INSET_RATIO,

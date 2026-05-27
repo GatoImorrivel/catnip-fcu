@@ -56,13 +56,13 @@ function rotatePoint(
   };
 }
 
-/** Axis-aligned bounds of a width×height rectangle rotated about `pivot`. */
-export function boundsAfterRotationAroundPivot(
+/** Axis-aligned bounds of a width×height rectangle rotated about `pivot` (graphic-local coords). */
+export function rotatedAabbAroundPivot(
   width: number,
   height: number,
   pivot: FireSelectorPivot,
   rotationDeg: number,
-): { width: number; height: number } {
+): { minX: number; minY: number; maxX: number; maxY: number } {
   const { px, py } = pivotToPixel(pivot, width, height);
   const rad = (rotationDeg * Math.PI) / 180;
   const cos = Math.cos(rad);
@@ -88,9 +88,53 @@ export function boundsAfterRotationAroundPivot(
     maxY = Math.max(maxY, rotated.y);
   }
 
+  return { minX, minY, maxX, maxY };
+}
+
+/** Axis-aligned bounds of a width×height rectangle rotated about `pivot`. */
+export function boundsAfterRotationAroundPivot(
+  width: number,
+  height: number,
+  pivot: FireSelectorPivot,
+  rotationDeg: number,
+): { width: number; height: number } {
+  const { minX, minY, maxX, maxY } = rotatedAabbAroundPivot(
+    width,
+    height,
+    pivot,
+    rotationDeg,
+  );
+
   return {
     width: maxX - minX,
     height: maxY - minY,
+  };
+}
+
+/**
+ * Positions the graphic so its pivot-rotated AABB is centered in the container.
+ * Use with `rnTransformAroundPivot` on an inner view sized to the graphic.
+ */
+export function graphicOffsetForPivotRotation(
+  graphicWidth: number,
+  graphicHeight: number,
+  pivot: FireSelectorPivot,
+  rotationDeg: number,
+  containerWidth: number,
+  containerHeight: number,
+): { graphicLeft: number; graphicTop: number } {
+  const { minX, minY, maxX, maxY } = rotatedAabbAroundPivot(
+    graphicWidth,
+    graphicHeight,
+    pivot,
+    rotationDeg,
+  );
+  const boundsWidth = maxX - minX;
+  const boundsHeight = maxY - minY;
+
+  return {
+    graphicLeft: (containerWidth - boundsWidth) / 2 - minX,
+    graphicTop: (containerHeight - boundsHeight) / 2 - minY,
   };
 }
 

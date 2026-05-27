@@ -18,6 +18,7 @@ export {
   type UseFcuRequestOptions,
   type UseFcuRequestResult,
 } from './use-fcu-request';
+export { useCreateReplicaFcu, type UseCreateReplicaFcuResult } from './use-create-replica-fcu';
 export {
   useFcuCharacteristics,
   type UseFcuCharacteristicsOptions,

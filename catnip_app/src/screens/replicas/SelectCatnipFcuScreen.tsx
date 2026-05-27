@@ -11,10 +11,13 @@ import {
 } from 'react-native';
 import type { Peripheral } from 'react-native-ble-manager';
 
-import { useBleConnect } from '@/hooks/use-ble-connect';
 import { useBleScan } from '@/hooks/use-ble-scan';
 import { useTheme } from '@/hooks/use-theme';
 import { getPeripheralLabel } from '@/lib/ble-peripheral';
+import {
+  prepareReplicaCreationFcu,
+  releaseReplicaCreationSession,
+} from '@/lib/fcu-connection-session';
 import { Screen } from '@/screens/components';
 
 export function SelectCatnipFcuScreen() {
@@ -22,7 +25,6 @@ export function SelectCatnipFcuScreen() {
   const { theme } = useTheme();
   const { devices, isScanning, error, ready, isBluetoothOn, startScan, stopScan } =
     useBleScan();
-  const { connect, status: connectionStatus } = useBleConnect();
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
 
@@ -46,24 +48,27 @@ export function SelectCatnipFcuScreen() {
       setConnectingId(device.id);
 
       try {
-        await connect(device);
+        await stopScan().catch(() => undefined);
+        await prepareReplicaCreationFcu(device.id);
+
         router.push({
           pathname: '/replicas/new',
           params: { bluetoothMac: device.id, fcuName: getPeripheralLabel(device) },
         });
       } catch (err: unknown) {
+        releaseReplicaCreationSession();
         setConnectError(err instanceof Error ? err.message : String(err));
       } finally {
         setConnectingId(null);
       }
     },
-    [connect, router],
+    [router, stopScan],
   );
 
   const displayError =
     connectError ?? error ?? (!isBluetoothOn && ready ? 'Turn on Bluetooth to scan.' : null);
 
-  const isConnecting = connectingId !== null || connectionStatus === 'connecting';
+  const isConnecting = connectingId !== null;
 
   return (
     <Screen>

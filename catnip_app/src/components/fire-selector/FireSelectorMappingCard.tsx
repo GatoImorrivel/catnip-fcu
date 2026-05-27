@@ -43,6 +43,7 @@ export function FireSelectorMappingCard({
           replicaType={replicaType}
           rotationDeg={slot.rotationDeg}
           size={replicaType === 'M4' ? 110 : 96}
+          rotationAnchor="svgCenter"
         />
       </View>
 
@@ -93,7 +94,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 0,
   },
   graphicWrap: {
     alignItems: 'center',

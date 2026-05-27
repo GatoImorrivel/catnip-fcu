@@ -1,4 +1,4 @@
-import * as ExpoCrypto from 'expo-crypto';
+import { getRandomBytes } from 'expo-crypto';
 import type { EventSubscription } from 'react-native';
 
 import {
@@ -66,6 +66,15 @@ function normalizeUuid(uuid: string): string {
 
 function messageKeyFromId(messageId: string): string {
   return messageId.replace(/-/g, '').toLowerCase();
+}
+
+/** BLE request correlation id (RFC4122 v4). Uses `getRandomBytes` — native `randomUUID` is missing on some dev builds. */
+function createBleMessageId(): string {
+  const bytes = getRandomBytes(16);
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function numbersToUint8Array(values: number[]): Uint8Array {
@@ -207,7 +216,7 @@ export class CatnipBleClient {
       throw new CatnipBleNotReadyError();
     }
 
-    const messageId = await ExpoCrypto.randomUUID();
+    const messageId = createBleMessageId();
     const messageKey = messageKeyFromId(messageId);
     const payload = encode(messageId);
 

@@ -19,7 +19,10 @@ export type UseFcuRequestOptions = UseCatnipFcuOptions & {
 
 export type UseFcuRequestResult<T> = {
   data: T | null;
+  /** True only for the initial connect/fetch (no cached `data` yet). */
   loading: boolean;
+  /** True when re-fetching while previous `data` is still available. */
+  isRefetching: boolean;
   error: string | null;
   refetch: () => Promise<void>;
   client: CatnipBleClient | null;
@@ -76,20 +79,27 @@ export function useFcuRequest<T>(
   }, [client]);
 
   useEffect(() => {
+    setData(null);
+    setError(null);
+  }, [peripheralId]);
+
+  useEffect(() => {
     if (!fetchEnabled || !ready || !client) {
       return;
     }
-    setData(null);
     void runFetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refetchDeps is intentional
   }, [client, fetchEnabled, ready, runFetch, ...refetchDeps]);
 
   const isConnecting = connectionStatus === 'connecting';
-  const isLoading = isConnecting || loading;
+  const hasData = data !== null;
+  const isInitialLoading = isConnecting || (loading && !hasData);
+  const isRefetching = loading && hasData;
 
   return {
     data,
-    loading: isLoading,
+    loading: isInitialLoading,
+    isRefetching,
     error: error ?? connectionError,
     refetch: runFetch,
     client,

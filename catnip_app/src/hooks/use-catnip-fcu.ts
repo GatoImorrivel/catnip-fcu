@@ -18,6 +18,11 @@ export type CatnipFcuStatus = FcuSessionStatus;
 export type UseCatnipFcuOptions = {
   /** When false, no connection is attempted. Defaults to true if `peripheralId` is set. */
   enabled?: boolean;
+  /**
+   * When false, only subscribes to an existing session (no acquire/release).
+   * Use after {@link retainReplicaCreationSession} on the create-replica flow.
+   */
+  manageConnection?: boolean;
   /** Called for FCU push events (fire mode change, trigger pull). */
   onEvent?: (event: FCUToHostEvent) => void;
 };
@@ -38,7 +43,7 @@ export function useCatnipFcu(
   peripheralId: string | null,
   options: UseCatnipFcuOptions = {},
 ): UseCatnipFcuResult {
-  const { enabled: enabledOption, onEvent } = options;
+  const { enabled: enabledOption, manageConnection = true, onEvent } = options;
   const { ready: bleReady, isBluetoothOn, error: managerError } = useBleManager();
 
   const [status, setStatus] = useState<CatnipFcuStatus>('idle');
@@ -86,14 +91,18 @@ export function useCatnipFcu(
       onEventRef.current?.(event);
     });
 
-    acquireFcuSession(mac);
+    if (manageConnection) {
+      acquireFcuSession(mac);
+    }
 
     return () => {
       unsubscribeSession();
       unsubscribeEvents();
-      releaseFcuSession(mac);
+      if (manageConnection) {
+        releaseFcuSession(mac);
+      }
     };
-  }, [enabled, peripheralId]);
+  }, [enabled, manageConnection, peripheralId]);
 
   useEffect(() => {
     if (!enabled || !peripheralId || connectAttempt === 0) {

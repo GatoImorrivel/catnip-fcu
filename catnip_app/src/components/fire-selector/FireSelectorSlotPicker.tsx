@@ -13,6 +13,8 @@ type FireSelectorSlotPickerProps = {
   replicaType: ReplicaType;
   selectedSlotIds: FireSelectorSlotId[];
   requiredCount: number;
+  /** Expands tiles to use available vertical space in a flex parent. */
+  fillAvailable?: boolean;
   onSelectionChange: (slotIds: FireSelectorSlotId[]) => void;
 };
 
@@ -37,15 +39,22 @@ export function FireSelectorSlotPicker({
   replicaType,
   selectedSlotIds,
   requiredCount,
+  fillAvailable = false,
   onSelectionChange,
 }: FireSelectorSlotPickerProps) {
   const { theme } = useTheme();
   const slots = getFireSelectorLayout(replicaType).slots;
   const atMax = selectedSlotIds.length >= requiredCount;
-  const graphicSize = replicaType === 'M4' ? 88 : 72;
+  const graphicSize = fillAvailable
+    ? replicaType === 'M4'
+      ? 112
+      : 92
+    : replicaType === 'M4'
+      ? 88
+      : 72;
 
   return (
-    <View style={styles.grid}>
+    <View style={[styles.grid, fillAvailable && styles.gridFill]}>
       {slots.map((slot) => {
         const selected = selectedSlotIds.includes(slot.id);
         const disabled = !selected && atMax;
@@ -61,6 +70,7 @@ export function FireSelectorSlotPicker({
             }}
             style={({ pressed }) => [
               styles.tile,
+              fillAvailable && styles.tileFill,
               {
                 borderColor: theme.colors.border,
                 backgroundColor: selected
@@ -70,11 +80,12 @@ export function FireSelectorSlotPicker({
               },
             ]}
           >
-            <View style={styles.graphicWrap}>
+            <View style={[styles.graphicWrap, fillAvailable && styles.graphicWrapFill]}>
               <FireSelectorGraphic
                 replicaType={replicaType}
                 rotationDeg={slot.rotationDeg}
                 size={graphicSize}
+                rotationAnchor="svgCenter"
                 strokeColor={
                   selected ? theme.colors.primaryForeground : theme.colors.foreground
                 }
@@ -107,6 +118,10 @@ const styles = StyleSheet.create({
     gap: 10,
     justifyContent: 'center',
   },
+  gridFill: {
+    flex: 1,
+    alignContent: 'center',
+  },
   tile: {
     width: '47%',
     maxWidth: 180,
@@ -116,11 +131,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 120,
   },
+  tileFill: {
+    flexGrow: 1,
+    flexBasis: '45%',
+    maxWidth: undefined,
+    minHeight: 140,
+    justifyContent: 'center',
+  },
   graphicWrap: {
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 88,
     paddingVertical: 4,
+  },
+  graphicWrapFill: {
+    flex: 1,
+    minHeight: 100,
+    width: '100%',
   },
   tileLabel: {
     fontSize: 14,

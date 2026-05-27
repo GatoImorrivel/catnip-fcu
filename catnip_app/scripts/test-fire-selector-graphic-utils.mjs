@@ -29,7 +29,7 @@ function pivotToPixel(pivot, width, height) {
   return { px: pivot.x * width, py: pivot.y * height };
 }
 
-function boundsAfterRotationAroundPivot(width, height, pivot, rotationDeg) {
+function rotatedAabbAroundPivot(width, height, pivot, rotationDeg) {
   const { px, py } = pivotToPixel(pivot, width, height);
   const rad = (rotationDeg * Math.PI) / 180;
   const cos = Math.cos(rad);
@@ -54,7 +54,39 @@ function boundsAfterRotationAroundPivot(width, height, pivot, rotationDeg) {
     maxX = Math.max(maxX, rx);
     maxY = Math.max(maxY, ry);
   }
+  return { minX, minY, maxX, maxY };
+}
+
+function boundsAfterRotationAroundPivot(width, height, pivot, rotationDeg) {
+  const { minX, minY, maxX, maxY } = rotatedAabbAroundPivot(
+    width,
+    height,
+    pivot,
+    rotationDeg,
+  );
   return { width: maxX - minX, height: maxY - minY };
+}
+
+function graphicOffsetForPivotRotation(
+  graphicWidth,
+  graphicHeight,
+  pivot,
+  rotationDeg,
+  containerWidth,
+  containerHeight,
+) {
+  const { minX, minY, maxX, maxY } = rotatedAabbAroundPivot(
+    graphicWidth,
+    graphicHeight,
+    pivot,
+    rotationDeg,
+  );
+  const boundsWidth = maxX - minX;
+  const boundsHeight = maxY - minY;
+  return {
+    graphicLeft: (containerWidth - boundsWidth) / 2 - minX,
+    graphicTop: (containerHeight - boundsHeight) / 2 - minY,
+  };
 }
 
 function normalizeDeg(deg) {
@@ -407,4 +439,94 @@ describe('fire-selector sweep sizing', () => {
     assert.ok(swept.containerWidth <= 260 + 0.01);
     assert.ok(swept.containerHeight <= 350 + 0.01);
   });
+});
+
+describe('graphicOffsetForPivotRotation (svg-center static layout)', () => {
+  function fitGraphicAtRotation(aspect, pivot, rotationDeg, maxSize, replicaConfig) {
+    const rotationSamples = [normalizeDeg(rotationDeg)];
+    const scale = scaleToFitMaxBox({
+      aspect,
+      pivot,
+      rotationSamples,
+      maxWidth: maxSize,
+      maxHeight: maxSize,
+      replicaConfig,
+    });
+    return computeSweptLayout({
+      aspect,
+      pivot,
+      rotationSamples,
+      scale,
+      replicaConfig,
+    });
+  }
+
+  for (const { label, aspect, pivot, slots, config } of [
+    { label: 'M4', aspect: M4_ASPECT, pivot: M4_PIVOT, slots: M4_LAYOUT_SLOTS, config: M4_CONFIG },
+    { label: 'AK', aspect: AK_ASPECT, pivot: AK_PIVOT, slots: AK_LAYOUT_SLOTS, config: AK_CONFIG },
+  ]) {
+    it(`${label}: rotated AABB fits inside container at layout slots`, () => {
+      for (const rotationDeg of slots) {
+        const layout = fitGraphicAtRotation(aspect, pivot, rotationDeg, 120, config);
+        const { graphicLeft, graphicTop } = graphicOffsetForPivotRotation(
+          layout.graphicWidth,
+          layout.graphicHeight,
+          pivot,
+          rotationDeg,
+          layout.containerWidth,
+          layout.containerHeight,
+        );
+        const aabb = rotatedAabbAroundPivot(
+          layout.graphicWidth,
+          layout.graphicHeight,
+          pivot,
+          rotationDeg,
+        );
+        const placedMinX = graphicLeft + aabb.minX;
+        const placedMaxX = graphicLeft + aabb.maxX;
+        const placedMinY = graphicTop + aabb.minY;
+        const placedMaxY = graphicTop + aabb.maxY;
+        assert.ok(placedMinX >= -0.01, `${label} ${rotationDeg}° minX`);
+        assert.ok(placedMinY >= -0.01, `${label} ${rotationDeg}° minY`);
+        assert.ok(placedMaxX <= layout.containerWidth + 0.01, `${label} ${rotationDeg}° maxX`);
+        assert.ok(placedMaxY <= layout.containerHeight + 0.01, `${label} ${rotationDeg}° maxY`);
+      }
+    });
+
+    it(`${label}: at 0° graphic center matches container center`, () => {
+      const layout = fitGraphicAtRotation(aspect, pivot, 0, 120, config);
+      const { graphicLeft, graphicTop } = graphicOffsetForPivotRotation(
+        layout.graphicWidth,
+        layout.graphicHeight,
+        pivot,
+        0,
+        layout.containerWidth,
+        layout.containerHeight,
+      );
+      const centerX = graphicLeft + layout.graphicWidth / 2;
+      const centerY = graphicTop + layout.graphicHeight / 2;
+      assert.ok(Math.abs(centerX - layout.containerWidth / 2) < 0.01);
+      assert.ok(Math.abs(centerY - layout.containerHeight / 2) < 0.01);
+    });
+
+    it(`${label}: offset AABB size matches boundsAfterRotationAroundPivot`, () => {
+      for (const rotationDeg of slots) {
+        const layout = fitGraphicAtRotation(aspect, pivot, rotationDeg, 120, config);
+        const { minX, minY, maxX, maxY } = rotatedAabbAroundPivot(
+          layout.graphicWidth,
+          layout.graphicHeight,
+          pivot,
+          rotationDeg,
+        );
+        const bounds = boundsAfterRotationAroundPivot(
+          layout.graphicWidth,
+          layout.graphicHeight,
+          pivot,
+          rotationDeg,
+        );
+        assert.ok(Math.abs(maxX - minX - bounds.width) < 0.01);
+        assert.ok(Math.abs(maxY - minY - bounds.height) < 0.01);
+      }
+    });
+  }
 });

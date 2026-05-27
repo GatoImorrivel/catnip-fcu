@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import {
 
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
+import { needsGunSlotSelection } from '@/replicas/fire-selector-layout';
 import type { FireSelectorSlotId } from '@/replicas/fire-selector-layout';
 import {
   assertReplicaType,
@@ -22,8 +23,10 @@ import {
 import type { WeaponMetadataValues } from '@/replicas/weapon-metadata';
 import { Screen } from '@/screens/components';
 import {
+  canContinueFireSelectorMappingStep,
   FireSelectorMappingStep,
   isFireSelectorMappingStepComplete,
+  type FireSelectorMappingSubphase,
 } from '@/screens/replicas/FireSelectorMappingStep';
 import { FireSelectorVerifyStep } from '@/screens/replicas/FireSelectorVerifyStep';
 
@@ -62,6 +65,8 @@ export function ConfigureReplicaMappingScreen() {
     SelectorPositionMappingEntry[]
   >([]);
   const [fcuNumPositions, setFcuNumPositions] = useState(0);
+  const [mappingSubphase, setMappingSubphase] =
+    useState<FireSelectorMappingSubphase>('pick');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +115,41 @@ export function ConfigureReplicaMappingScreen() {
     };
   }, [get, replicaId]);
 
+  const slotPickRequired = useMemo(
+    () =>
+      replicaType !== null &&
+      fcuNumPositions > 0 &&
+      needsGunSlotSelection(replicaType, metadata, fcuNumPositions),
+    [replicaType, metadata, fcuNumPositions],
+  );
+
+  const inMappingPickSubphase =
+    step === 'mapSelector' && slotPickRequired && mappingSubphase === 'pick';
+
+  const useFlexPickLayout = inMappingPickSubphase;
+
+  const mappingFooterEnabled = useMemo(() => {
+    if (replicaType === null) {
+      return false;
+    }
+
+    return canContinueFireSelectorMappingStep(
+      replicaType,
+      metadata,
+      fcuNumPositions,
+      selectedGunSlotIds,
+      selectorPositionMapping,
+      mappingSubphase,
+    );
+  }, [
+    replicaType,
+    metadata,
+    fcuNumPositions,
+    selectedGunSlotIds,
+    selectorPositionMapping,
+    mappingSubphase,
+  ]);
+
   const mappingStepComplete =
     replicaType !== null &&
     fcuNumPositions > 0 &&
@@ -122,11 +162,21 @@ export function ConfigureReplicaMappingScreen() {
     );
 
   const handleContinueFromMapping = useCallback(() => {
+    if (!mappingFooterEnabled) {
+      return;
+    }
+
+    if (inMappingPickSubphase) {
+      setMappingSubphase('map');
+      return;
+    }
+
     if (!mappingStepComplete) {
       return;
     }
+
     setStep('verifyMapping');
-  }, [mappingStepComplete]);
+  }, [inMappingPickSubphase, mappingFooterEnabled, mappingStepComplete]);
 
   const handleSave = useCallback(async () => {
     if (!replicaId || !replicaType || !mappingStepComplete) {
@@ -151,6 +201,7 @@ export function ConfigureReplicaMappingScreen() {
 
   const handleBack = useCallback(() => {
     if (step === 'verifyMapping') {
+      setMappingSubphase('map');
       setStep('mapSelector');
       return;
     }
@@ -158,6 +209,23 @@ export function ConfigureReplicaMappingScreen() {
   }, [router, step]);
 
   const stepTitle = step === 'mapSelector' ? 'Map fire selector' : 'Verify mapping';
+
+  const fireSelectorMappingStep =
+    replicaType !== null ? (
+      <FireSelectorMappingStep
+        replicaType={replicaType}
+        metadata={metadata}
+        peripheralId={peripheralId}
+        selectedGunSlotIds={selectedGunSlotIds}
+        mapping={selectorPositionMapping}
+        subphase={mappingSubphase}
+        onSubphaseChange={setMappingSubphase}
+        layout="fill"
+        onSelectedGunSlotsChange={setSelectedGunSlotIds}
+        onMappingChange={setSelectorPositionMapping}
+        onFcuNumPositionsChange={setFcuNumPositions}
+      />
+    ) : null;
 
   if (loadError) {
     return (
@@ -207,31 +275,22 @@ export function ConfigureReplicaMappingScreen() {
           {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
         </View>
       ) : (
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-          <FireSelectorMappingStep
-            replicaType={replicaType}
-            metadata={metadata}
-            peripheralId={peripheralId}
-            selectedGunSlotIds={selectedGunSlotIds}
-            mapping={selectorPositionMapping}
-            onSelectedGunSlotsChange={setSelectedGunSlotIds}
-            onMappingChange={setSelectorPositionMapping}
-            onFcuNumPositionsChange={setFcuNumPositions}
-          />
+        <View style={[styles.body, styles.bodyContentFlex]}>
+          {fireSelectorMappingStep}
           {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
-        </ScrollView>
+        </View>
       )}
 
       <View style={styles.footer}>
         {step === 'mapSelector' ? (
           <Pressable
             onPress={handleContinueFromMapping}
-            disabled={!mappingStepComplete}
+            disabled={!mappingFooterEnabled}
             style={({ pressed }) => [
               styles.primaryButton,
               {
                 backgroundColor: theme.colors.primary,
-                opacity: pressed || !mappingStepComplete ? 0.6 : 1,
+                opacity: pressed || !mappingFooterEnabled ? 0.6 : 1,
               },
             ]}
           >
@@ -244,7 +303,10 @@ export function ConfigureReplicaMappingScreen() {
         {step === 'verifyMapping' ? (
           <View style={styles.footerRow}>
             <Pressable
-              onPress={() => setStep('mapSelector')}
+              onPress={() => {
+                setMappingSubphase('map');
+                setStep('mapSelector');
+              }}
               style={({ pressed }) => [
                 styles.secondaryButton,
                 { borderColor: theme.colors.border, opacity: pressed ? 0.7 : 1 },

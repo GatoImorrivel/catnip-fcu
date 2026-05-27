@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,8 +12,12 @@ import {
 } from 'react-native';
 
 import { loadDefaultProfilesFromFcu } from '@/fcu-profiles';
+import { useCreateReplicaFcu } from '@/hooks/use-create-replica-fcu';
 import { useReplicas } from '@/hooks/use-replicas';
+import { releaseReplicaCreationSession } from '@/lib/fcu-connection-session';
 import { useTheme } from '@/hooks/use-theme';
+import type { FCUToHostEvent } from '@/messages/types';
+import { needsGunSlotSelection } from '@/replicas/fire-selector-layout';
 import type { FireSelectorSlotId } from '@/replicas/fire-selector-layout';
 import {
   getWeaponMetadataFields,
@@ -26,14 +30,21 @@ import { REPLICA_TYPES, type ReplicaType } from '@/replicas';
 import { Dropdown } from '@/screens/components/Dropdown';
 import { Screen } from '@/screens/components';
 import {
+  canContinueFireSelectorMappingStep,
   FireSelectorMappingStep,
   isFireSelectorMappingStepComplete,
+  type FireSelectorMappingSubphase,
 } from '@/screens/replicas/FireSelectorMappingStep';
 import { FireSelectorVerifyStep } from '@/screens/replicas/FireSelectorVerifyStep';
 
 type CreateStep = 'weapon' | 'mapSelector' | 'verifyMapping' | 'name';
 
 const WEAPON_TYPE_OPTIONS = REPLICA_TYPES.map((type) => ({ value: type, label: type }));
+
+type CreateReplicaFlowProps = {
+  mac: string;
+  boundFcuName: string;
+};
 
 export function CreateReplicaScreen() {
   const router = useRouter();
@@ -43,6 +54,23 @@ export function CreateReplicaScreen() {
   }>();
   const mac = typeof bluetoothMac === 'string' ? bluetoothMac : '';
   const boundFcuName = typeof fcuName === 'string' ? fcuName.trim() : '';
+
+  useEffect(() => {
+    if (!mac || !boundFcuName) {
+      router.replace('/replicas/select-fcu');
+    }
+  }, [boundFcuName, mac, router]);
+
+  if (!mac || !boundFcuName) {
+    return null;
+  }
+
+  return <CreateReplicaFlow mac={mac} boundFcuName={boundFcuName} />;
+}
+
+function CreateReplicaFlow({ mac, boundFcuName }: CreateReplicaFlowProps) {
+  const router = useRouter();
+  const navigation = useNavigation();
   const { theme } = useTheme();
   const { create } = useReplicas();
 
@@ -57,30 +85,79 @@ export function CreateReplicaScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fcuNumPositions, setFcuNumPositions] = useState(0);
+  const [mappingSubphase, setMappingSubphase] =
+    useState<FireSelectorMappingSubphase>('pick');
+  const [liveFcuPosition, setLiveFcuPosition] = useState<number | null>(null);
+
+  const onCreateFcuEvent = useCallback((event: FCUToHostEvent) => {
+    if (event.tag === 'SelectorPositionChange') {
+      setLiveFcuPosition(event.position);
+    }
+  }, []);
+
+  const createFcu = useCreateReplicaFcu(mac, { onEvent: onCreateFcuEvent });
 
   const metadataFields = useMemo(() => getWeaponMetadataFields(type), [type]);
 
   useEffect(() => {
-    if (!mac || !boundFcuName) {
-      router.replace('/replicas/select-fcu');
+    const count = createFcu.characteristics?.num_fire_positions ?? 0;
+    if (count > 0) {
+      setFcuNumPositions(count);
     }
-  }, [boundFcuName, mac, router]);
+  }, [createFcu.characteristics]);
+
+  useEffect(() => {
+    return navigation.addListener('beforeRemove', () => {
+      releaseReplicaCreationSession();
+    });
+  }, [navigation]);
 
   useEffect(() => {
     setMetadata({});
     setSelectedGunSlotIds([]);
     setSelectorPositionMapping([]);
-    setFcuNumPositions(0);
+    setMappingSubphase('pick');
   }, [type]);
 
   useEffect(() => {
     setSelectedGunSlotIds([]);
     setSelectorPositionMapping([]);
-    setFcuNumPositions(0);
+    setMappingSubphase('pick');
   }, [metadata.fireSelectorPositions]);
 
   const weaponStepComplete =
     !hasWeaponMetadata(type) || isWeaponMetadataComplete(type, metadata);
+
+  const slotPickRequired = useMemo(
+    () =>
+      fcuNumPositions > 0 && needsGunSlotSelection(type, metadata, fcuNumPositions),
+    [type, metadata, fcuNumPositions],
+  );
+
+  const inMappingPickSubphase =
+    step === 'mapSelector' && slotPickRequired && mappingSubphase === 'pick';
+
+  const useFlexPickLayout = inMappingPickSubphase;
+
+  const mappingFooterEnabled = useMemo(
+    () =>
+      canContinueFireSelectorMappingStep(
+        type,
+        metadata,
+        fcuNumPositions,
+        selectedGunSlotIds,
+        selectorPositionMapping,
+        mappingSubphase,
+      ),
+    [
+      type,
+      metadata,
+      fcuNumPositions,
+      selectedGunSlotIds,
+      selectorPositionMapping,
+      mappingSubphase,
+    ],
+  );
 
   const mappingStepComplete =
     fcuNumPositions > 0 &&
@@ -97,22 +174,33 @@ export function CreateReplicaScreen() {
       return;
     }
 
+    setMappingSubphase('pick');
     setStep('mapSelector');
   }, [weaponStepComplete]);
 
   const handleContinueFromMapping = useCallback(() => {
+    if (!mappingFooterEnabled) {
+      return;
+    }
+
+    if (inMappingPickSubphase) {
+      setMappingSubphase('map');
+      return;
+    }
+
     if (!mappingStepComplete) {
       return;
     }
 
     setStep('verifyMapping');
-  }, [mappingStepComplete]);
+  }, [inMappingPickSubphase, mappingFooterEnabled, mappingStepComplete]);
 
   const handleContinueFromVerify = useCallback(() => {
     setStep('name');
   }, []);
 
   const handleGoBackFromVerify = useCallback(() => {
+    setMappingSubphase('map');
     setStep('mapSelector');
   }, []);
 
@@ -132,6 +220,7 @@ export function CreateReplicaScreen() {
       return;
     }
 
+    releaseReplicaCreationSession();
     router.back();
   }, [router, step]);
 
@@ -160,6 +249,7 @@ export function CreateReplicaScreen() {
         selectorPositionProfiles: assignments,
       });
 
+      releaseReplicaCreationSession();
       router.replace('/');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -179,10 +269,6 @@ export function CreateReplicaScreen() {
     weaponStepComplete,
   ]);
 
-  if (!mac || !boundFcuName) {
-    return null;
-  }
-
   const stepTitle =
     step === 'weapon'
       ? 'Weapon type'
@@ -191,6 +277,24 @@ export function CreateReplicaScreen() {
         : step === 'verifyMapping'
           ? 'Verify mapping'
           : 'Name replica';
+
+  const fireSelectorMappingStep = (
+    <FireSelectorMappingStep
+      replicaType={type}
+      metadata={metadata}
+      peripheralId={mac}
+      selectedGunSlotIds={selectedGunSlotIds}
+      mapping={selectorPositionMapping}
+      subphase={mappingSubphase}
+      onSubphaseChange={setMappingSubphase}
+      layout="fill"
+      fcu={createFcu}
+      liveFcuPosition={liveFcuPosition}
+      onSelectedGunSlotsChange={setSelectedGunSlotIds}
+      onMappingChange={setSelectorPositionMapping}
+      onFcuNumPositionsChange={setFcuNumPositions}
+    />
+  );
 
   return (
     <Screen style={styles.screen}>
@@ -220,6 +324,11 @@ export function CreateReplicaScreen() {
             peripheralId={mac}
             mapping={selectorPositionMapping}
           />
+          {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
+        </View>
+      ) : step === 'mapSelector' ? (
+        <View style={[styles.body, styles.bodyContentFlex]}>
+          {fireSelectorMappingStep}
           {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
         </View>
       ) : (
@@ -282,19 +391,6 @@ export function CreateReplicaScreen() {
           </>
         ) : null}
 
-        {step === 'mapSelector' ? (
-          <FireSelectorMappingStep
-            replicaType={type}
-            metadata={metadata}
-            peripheralId={mac}
-            selectedGunSlotIds={selectedGunSlotIds}
-            mapping={selectorPositionMapping}
-            onSelectedGunSlotsChange={setSelectedGunSlotIds}
-            onMappingChange={setSelectorPositionMapping}
-            onFcuNumPositionsChange={setFcuNumPositions}
-          />
-        ) : null}
-
         {step === 'name' ? (
           <>
             <Text style={[styles.label, { color: theme.colors.muted }]}>Name</Text>
@@ -343,12 +439,12 @@ export function CreateReplicaScreen() {
         {step === 'mapSelector' ? (
           <Pressable
             onPress={handleContinueFromMapping}
-            disabled={!mappingStepComplete}
+            disabled={!mappingFooterEnabled}
             style={({ pressed }) => [
               styles.primaryButton,
               {
                 backgroundColor: theme.colors.primary,
-                opacity: pressed || !mappingStepComplete ? 0.6 : 1,
+                opacity: pressed || !mappingFooterEnabled ? 0.6 : 1,
               },
             ]}
           >

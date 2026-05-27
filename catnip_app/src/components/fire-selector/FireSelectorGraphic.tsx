@@ -1,11 +1,16 @@
 import type { FC } from 'react';
+import { useMemo } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import type { SvgProps } from 'react-native-svg';
 
 import { fitGraphicAtRotation } from '@/components/fire-selector/fire-selector-graphic-utils';
 import { useTheme } from '@/hooks/use-theme';
 import { getFireSelectorPivot } from '@/replicas/fire-selector-pivot';
-import { pivotTransformInContainer } from '@/replicas/fire-selector-pivot-math';
+import {
+  graphicOffsetForPivotRotation,
+  pivotTransformInContainer,
+  rnTransformAroundPivot,
+} from '@/replicas/fire-selector-pivot-math';
 import type { ReplicaType } from '@/replicas/types';
 
 import M4FireSelector from '../../../assets/m4_style/fire_selector.svg';
@@ -16,6 +21,8 @@ const SELECTOR_SVG: Record<ReplicaType, FC<SvgProps>> = {
   AK: AkFireSelector,
 };
 
+export type FireSelectorRotationAnchor = 'viewportPivot' | 'svgCenter';
+
 type FireSelectorGraphicProps = {
   replicaType: ReplicaType;
   rotationDeg: number;
@@ -23,6 +30,11 @@ type FireSelectorGraphicProps = {
   size?: number;
   /** Override stroke color (defaults to theme foreground). */
   strokeColor?: string;
+  /**
+   * `viewportPivot` — pivot stays at container center (live/animated panels).
+   * `svgCenter` — graphic viewBox center is centered; rotation is about the replica pivot.
+   */
+  rotationAnchor?: FireSelectorRotationAnchor;
   style?: ViewStyle;
 };
 
@@ -31,6 +43,7 @@ export function FireSelectorGraphic({
   rotationDeg,
   size = 120,
   strokeColor: strokeColorProp,
+  rotationAnchor = 'viewportPivot',
   style,
 }: FireSelectorGraphicProps) {
   const { theme } = useTheme();
@@ -44,13 +57,68 @@ export function FireSelectorGraphic({
     pivot,
   );
 
-  const { tx, ty, graphicLeft, graphicTop } = pivotTransformInContainer(
-    pivot,
-    graphicWidth,
-    graphicHeight,
-    containerWidth,
+  const svgCenterLayout = useMemo(() => {
+    if (rotationAnchor !== 'svgCenter') {
+      return null;
+    }
+
+    const { graphicLeft, graphicTop } = graphicOffsetForPivotRotation(
+      graphicWidth,
+      graphicHeight,
+      pivot,
+      rotationDeg,
+      containerWidth,
+      containerHeight,
+    );
+
+    return {
+      graphicLeft,
+      graphicTop,
+      transform: rnTransformAroundPivot(rotationDeg, pivot, graphicWidth, graphicHeight),
+    };
+  }, [
     containerHeight,
-  );
+    containerWidth,
+    graphicHeight,
+    graphicWidth,
+    pivot,
+    rotationAnchor,
+    rotationDeg,
+  ]);
+
+  const viewportPivotLayout = useMemo(() => {
+    if (rotationAnchor !== 'viewportPivot') {
+      return null;
+    }
+
+    const { tx, ty, graphicLeft, graphicTop } = pivotTransformInContainer(
+      pivot,
+      graphicWidth,
+      graphicHeight,
+      containerWidth,
+      containerHeight,
+    );
+
+    return {
+      graphicLeft,
+      graphicTop,
+      transform: [
+        { translateX: tx },
+        { translateY: ty },
+        { rotate: `${rotationDeg}deg` },
+        { translateX: -tx },
+        { translateY: -ty },
+      ] as const,
+    };
+  }, [
+    containerHeight,
+    containerWidth,
+    graphicHeight,
+    graphicWidth,
+    pivot,
+    rotationAnchor,
+    rotationDeg,
+  ]);
 
   return (
     <View
@@ -63,34 +131,48 @@ export function FireSelectorGraphic({
         style,
       ]}
     >
-      <View
-        style={[
-          styles.rotated,
-          {
-            width: containerWidth,
-            height: containerHeight,
-            transform: [
-              { translateX: tx },
-              { translateY: ty },
-              { rotate: `${rotationDeg}deg` },
-              { translateX: -tx },
-              { translateY: -ty },
-            ],
-          },
-        ]}
-      >
-        <SvgComponent
-          width={graphicWidth}
-          height={graphicHeight}
-          color={strokeColor}
-          stroke={strokeColor}
+      {svgCenterLayout ? (
+        <View
           style={{
             position: 'absolute',
-            left: graphicLeft,
-            top: graphicTop,
+            left: svgCenterLayout.graphicLeft,
+            top: svgCenterLayout.graphicTop,
+            width: graphicWidth,
+            height: graphicHeight,
+            transform: svgCenterLayout.transform,
           }}
-        />
-      </View>
+        >
+          <SvgComponent
+            width={graphicWidth}
+            height={graphicHeight}
+            color={strokeColor}
+            stroke={strokeColor}
+          />
+        </View>
+      ) : viewportPivotLayout ? (
+        <View
+          style={[
+            styles.rotated,
+            {
+              width: containerWidth,
+              height: containerHeight,
+              transform: viewportPivotLayout.transform,
+            },
+          ]}
+        >
+          <SvgComponent
+            width={graphicWidth}
+            height={graphicHeight}
+            color={strokeColor}
+            stroke={strokeColor}
+            style={{
+              position: 'absolute',
+              left: viewportPivotLayout.graphicLeft,
+              top: viewportPivotLayout.graphicTop,
+            }}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }

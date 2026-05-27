@@ -3,4 +3,5 @@ export { LiveFireSelectorPanel } from './LiveFireSelectorPanel';
 export { ResponsiveLiveFireSelectorPanel } from './ResponsiveLiveFireSelectorPanel';
 export { FireSelectorGraphic } from './FireSelectorGraphic';
 export { FireSelectorMappingCard } from './FireSelectorMappingCard';
+export { FireSelectorMappingCarousel } from './FireSelectorMappingCarousel';
 export { FireSelectorSlotPicker } from './FireSelectorSlotPicker';
