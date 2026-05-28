@@ -58,7 +58,7 @@ impl<'d> catnip_core::FireSelector for ESP32FireSelector<'d> {
     }
 
     fn position_count(&self) -> usize {
-        self.pin_count().pow(2)
+        2usize.pow(self.pin_count() as u32)
     }
 }
 
