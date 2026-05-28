@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "catnip_app",
+    "name": "Catnip FCU",
     "slug": "catnip_app",
     "scheme": "catnip",
     "version": "1.0.0",
@@ -16,10 +16,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#E5E5E5"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
