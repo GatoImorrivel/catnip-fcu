@@ -11,6 +11,8 @@ type FireModeConfigSchemaFormProps = {
   values: Record<string, string>;
   onValuesChange: (next: Record<string, string>) => void;
   readOnly?: boolean;
+  /** Increment to shake invalid numeric fields (e.g. blocked save tap). */
+  shakeInvalidFieldsTrigger?: number;
 };
 
 export function FireModeConfigSchemaForm({
@@ -18,6 +20,7 @@ export function FireModeConfigSchemaForm({
   values,
   onValuesChange,
   readOnly = false,
+  shakeInvalidFieldsTrigger = 0,
 }: FireModeConfigSchemaFormProps) {
   const { theme } = useTheme();
   const fields = flattenSchemaFields(schema);
@@ -38,6 +41,7 @@ export function FireModeConfigSchemaForm({
           entry={entry}
           value={values[key] ?? ''}
           readOnly={readOnly}
+          shakeTrigger={shakeInvalidFieldsTrigger}
           onValueChange={(next) => {
             onValuesChange({ ...values, [key]: next });
           }}

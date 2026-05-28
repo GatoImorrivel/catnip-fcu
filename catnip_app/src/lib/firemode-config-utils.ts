@@ -48,9 +48,51 @@ export function defaultWireValuesFromSchema(
   return values;
 }
 
+const INTEGER_WIRE_VALUE_PATTERN = /^-?\d+$/;
+
+export function isNumericWireValueValid(raw: string, min: number, max: number): boolean {
+  if (!INTEGER_WIRE_VALUE_PATTERN.test(raw)) {
+    return false;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return parsed >= min && parsed <= max;
+}
+
+export function isWireConfigValid(
+  schema: FireModeConfigFields,
+  values: Record<string, string>,
+): boolean {
+  for (const { key, entry } of flattenSchemaFields(schema)) {
+    const value = values[key] ?? '';
+    if (entry.tag === 'Numeric') {
+      if (!isNumericWireValueValid(value, entry.min, entry.max)) {
+        return false;
+      }
+    } else if (value !== 'true' && value !== 'false') {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Merges schema defaults with profile overrides without clamping (editor display). */
+export function mergeEditorConfigValues(
+  schema: FireModeConfigFields,
+  overrides: Record<string, string>,
+): Record<string, string> {
+  const result = defaultWireValuesFromSchema(schema);
+  for (const { key } of flattenSchemaFields(schema)) {
+    if (overrides[key] !== undefined) {
+      result[key] = overrides[key];
+    }
+  }
+  return result;
+}
+
 /**
  * Builds a wire config map valid for `UpdateFireModeConfig`: FCU schema defaults
  * plus profile overrides for known fields only (extras like mock-only keys are dropped).
+ * Invalid numeric overrides are skipped (default kept).
  */
 export function buildWireConfigForFcu(
   schema: FireModeConfigFields,
@@ -65,7 +107,9 @@ export function buildWireConfigForFcu(
     }
 
     if (entry.tag === 'Numeric') {
-      result[key] = clampNumericWireValue(override, entry.min, entry.max);
+      if (isNumericWireValueValid(override, entry.min, entry.max)) {
+        result[key] = String(Number.parseInt(override, 10));
+      }
     } else {
       result[key] = override === 'true' ? 'true' : 'false';
     }

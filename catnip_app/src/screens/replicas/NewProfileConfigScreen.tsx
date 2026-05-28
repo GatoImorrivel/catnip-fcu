@@ -12,6 +12,10 @@ import {
 
 import { FireModeConfigSchemaForm, defaultWireValuesFromSchema } from '@/components/firemode';
 import {
+  buildWireConfigForFcu,
+  isWireConfigValid,
+} from '@/lib/firemode-config-utils';
+import {
   assertUniqueProfileNameInProfiles,
   parseSelectorPositionProfiles,
   upsertPositionProfileAssignment,
@@ -149,9 +153,15 @@ export function NewProfileConfigScreen() {
   }, [firemodeName]);
 
   const handleCreate = useCallback(async () => {
-    if (!firemodeName || !profileName || fcuPosition === null || !compatibilityId) {
+    if (!firemodeName || !profileName || fcuPosition === null || !compatibilityId || !schema) {
       return;
     }
+
+    if (!isWireConfigValid(schema, configValues)) {
+      return;
+    }
+
+    const wireConfig = buildWireConfigForFcu(schema, configValues);
 
     setCreating(true);
     try {
@@ -159,7 +169,7 @@ export function NewProfileConfigScreen() {
       const created = await fcuProfiles.createCustomProfile(
         profileName,
         firemodeName,
-        configValues,
+        wireConfig,
       );
 
       const replica = await get(replicaId);
@@ -194,10 +204,19 @@ export function NewProfileConfigScreen() {
     pushProfileAtPosition,
     replicaId,
     router,
+    schema,
     update,
   ]);
 
   const displayError = loadError ?? schemaError ?? syncError;
+  const configValid = schema != null && isWireConfigValid(schema, configValues);
+  const canCreate =
+    Boolean(schema) &&
+    !schemaLoading &&
+    configValid &&
+    !creating &&
+    !displayError;
+
   const loadingMessage =
     connectionStatus === 'connecting'
       ? 'Connecting to FCU…'
@@ -259,12 +278,12 @@ export function NewProfileConfigScreen() {
       <View style={styles.footer}>
         <Pressable
           onPress={() => void handleCreate()}
-          disabled={creating || !schema || schemaLoading || Boolean(displayError)}
+          disabled={!canCreate}
           style={({ pressed }) => [
             styles.primaryButton,
             {
               backgroundColor: theme.colors.primary,
-              opacity: pressed || creating || !schema ? 0.7 : 1,
+              opacity: pressed || !canCreate ? 0.7 : 1,
             },
           ]}
         >

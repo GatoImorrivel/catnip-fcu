@@ -14,7 +14,12 @@ import {
 import { ConfirmModal } from '@/components/fcu-profiles';
 import { FireModeConfigSchemaForm } from '@/components/firemode';
 import { getProfileDisplayName, type FcuProfileId } from '@/fcu-profiles';
-import { buildWireConfigForFcu, wireConfigsEqual } from '@/lib/firemode-config-utils';
+import {
+  buildWireConfigForFcu,
+  isWireConfigValid,
+  mergeEditorConfigValues,
+  wireConfigsEqual,
+} from '@/lib/firemode-config-utils';
 import { useCatnipFcu } from '@/hooks/use-catnip-fcu';
 import { useFcuProfileCatalogKey } from '@/hooks/use-fcu-profile-catalog-key';
 import { useFcuProfiles } from '@/hooks/use-fcu-profiles';
@@ -64,6 +69,7 @@ export function EditProfileScreen() {
   const [discarding, setDiscarding] = useState(false);
   const [discardModalOpen, setDiscardModalOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [invalidFieldsShakeTrigger, setInvalidFieldsShakeTrigger] = useState(0);
 
   const livePushEnabledRef = useRef(false);
   const allowLeaveRef = useRef(false);
@@ -191,7 +197,7 @@ export function EditProfileScreen() {
         // Fall back to stored profile config.
       }
 
-      const values = buildWireConfigForFcu(schema, sourceConfig);
+      const values = mergeEditorConfigValues(schema, sourceConfig);
       if (cancelled) {
         return;
       }
@@ -235,16 +241,23 @@ export function EditProfileScreen() {
   const handleValuesChange = useCallback(
     (next: Record<string, string>) => {
       setConfigValues(next);
-      if (!livePushEnabledRef.current || !firemodeName || fcuPosition === null) {
+      if (!livePushEnabledRef.current || !firemodeName || fcuPosition === null || !schema) {
         return;
       }
       cancelPendingLivePush();
+      if (!isWireConfigValid(schema, next)) {
+        return;
+      }
       debounceRef.current = setTimeout(() => {
         debounceRef.current = null;
-        void pushConfigAtPosition(fcuPosition, firemodeName, next);
+        void pushConfigAtPosition(
+          fcuPosition,
+          firemodeName,
+          buildWireConfigForFcu(schema, next),
+        );
       }, LIVE_PUSH_DEBOUNCE_MS);
     },
-    [cancelPendingLivePush, firemodeName, fcuPosition, pushConfigAtPosition],
+    [cancelPendingLivePush, firemodeName, fcuPosition, pushConfigAtPosition, schema],
   );
 
   const requestLeave = useCallback(() => {
@@ -277,20 +290,22 @@ export function EditProfileScreen() {
   );
 
   const handleDiscard = useCallback(async () => {
-    if (!profileId || !firemodeName || fcuPosition === null) {
+    if (!profileId || !firemodeName || fcuPosition === null || !schema) {
       return;
     }
+
+    const wireBaseline = buildWireConfigForFcu(schema, baselineValues);
 
     setDiscarding(true);
     cancelPendingLivePush();
     livePushEnabledRef.current = false;
 
     try {
-      setConfigValues(baselineValues);
+      setConfigValues(wireBaseline);
       if (profile && !profile.isDefault) {
-        fcuProfiles.updateCustomProfile(profileId, baselineValues);
+        fcuProfiles.updateCustomProfile(profileId, wireBaseline);
       }
-      await pushConfigAtPosition(fcuPosition, firemodeName, baselineValues);
+      await pushConfigAtPosition(fcuPosition, firemodeName, wireBaseline);
       setDiscardModalOpen(false);
       navigateAway();
     } catch (err: unknown) {
@@ -308,12 +323,26 @@ export function EditProfileScreen() {
     profile,
     profileId,
     pushConfigAtPosition,
+    schema,
   ]);
 
   const handleSave = useCallback(async () => {
-    if (!profileId || !profile || profile.isDefault || fcuPosition === null || !firemodeName) {
+    if (
+      !profileId ||
+      !profile ||
+      profile.isDefault ||
+      fcuPosition === null ||
+      !firemodeName ||
+      !schema
+    ) {
       return;
     }
+
+    if (!isWireConfigValid(schema, configValues)) {
+      return;
+    }
+
+    const wireConfig = buildWireConfigForFcu(schema, configValues);
 
     setSaving(true);
     setLoadError(null);
@@ -321,13 +350,14 @@ export function EditProfileScreen() {
     livePushEnabledRef.current = false;
 
     try {
-      fcuProfiles.updateCustomProfile(profileId, configValues);
-      const bleError = await pushConfigAtPosition(fcuPosition, firemodeName, configValues);
+      fcuProfiles.updateCustomProfile(profileId, wireConfig);
+      const bleError = await pushConfigAtPosition(fcuPosition, firemodeName, wireConfig);
       if (bleError !== null) {
         livePushEnabledRef.current = true;
         return;
       }
-      setBaselineValues(configValues);
+      setBaselineValues(wireConfig);
+      setConfigValues(wireConfig);
       navigateAway();
     } catch (err: unknown) {
       livePushEnabledRef.current = true;
@@ -345,27 +375,61 @@ export function EditProfileScreen() {
     profile,
     profileId,
     pushConfigAtPosition,
+    schema,
   ]);
 
   const displayError = loadError ?? schemaError ?? syncError;
+  const valuesLoading =
+    Boolean(schema) &&
+    !schemaLoading &&
+    !schemaInitialized &&
+    Boolean(profile) &&
+    !profile?.isDefault;
+  const fcuSyncing = syncing && !saving && !discarding;
   const loadingMessage =
     connectionStatus === 'connecting'
       ? 'Connecting to FCU…'
       : schemaLoading
         ? 'Loading config fields from FCU…'
-        : syncing && !saving && !discarding
-          ? 'Updating FCU…'
+        : valuesLoading
+          ? 'Loading profile values…'
           : null;
+
+  const configValid = schema != null && isWireConfigValid(schema, configValues);
 
   const canSave =
     Boolean(profile) &&
     !profile?.isDefault &&
     fcuPosition !== null &&
     Boolean(schema) &&
+    configValid &&
     !schemaLoading &&
     !saving &&
     !discarding &&
     !displayError;
+
+  const saveButtonDisabled =
+    saving ||
+    discarding ||
+    !profile ||
+    profile?.isDefault ||
+    fcuPosition === null ||
+    !schema ||
+    schemaLoading ||
+    !schemaInitialized;
+
+  const handleSavePress = useCallback(() => {
+    if (saveButtonDisabled) {
+      return;
+    }
+    if (schema && !isWireConfigValid(schema, configValues)) {
+      setInvalidFieldsShakeTrigger((count) => count + 1);
+      return;
+    }
+    if (canSave) {
+      void handleSave();
+    }
+  }, [canSave, configValues, handleSave, saveButtonDisabled, schema]);
 
   return (
     <Screen style={styles.screen}>
@@ -379,9 +443,22 @@ export function EditProfileScreen() {
         >
           <MaterialIcons name="arrow-back" size={24} color={theme.colors.foreground} />
         </Pressable>
-        <Text style={[styles.title, { color: theme.colors.foreground }]} numberOfLines={1}>
-          {profile ? getProfileDisplayName(profile) : 'Edit profile'}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text
+            style={[styles.title, { color: theme.colors.foreground }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {profile ? getProfileDisplayName(profile) : 'Edit profile'}
+          </Text>
+          {fcuSyncing ? (
+            <ActivityIndicator
+              size="small"
+              color={theme.colors.primary}
+              accessibilityLabel="Syncing to FCU"
+            />
+          ) : null}
+        </View>
       </View>
 
       {firemodeName ? (
@@ -409,19 +486,20 @@ export function EditProfileScreen() {
       ) : null}
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {schema && !schemaLoading && profile && !profile.isDefault ? (
+        {schema && schemaInitialized && !schemaLoading && profile && !profile.isDefault ? (
           <FireModeConfigSchemaForm
             schema={schema}
             values={configValues}
             onValuesChange={handleValuesChange}
+            shakeInvalidFieldsTrigger={invalidFieldsShakeTrigger}
           />
         ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
         <Pressable
-          onPress={() => void handleSave()}
-          disabled={!canSave}
+          onPress={handleSavePress}
+          disabled={saveButtonDisabled}
           style={({ pressed }) => [
             styles.primaryButton,
             {
@@ -474,8 +552,15 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.6,
   },
-  title: {
+  titleRow: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+    gap: 6,
+  },
+  title: {
+    flexShrink: 1,
     fontSize: 22,
     fontWeight: '700',
   },
