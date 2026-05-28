@@ -183,7 +183,7 @@ export function FireSelectorMappingStep({
   if (showConnectionError) {
     return (
       <View style={[styles.centered, fillPickLayout && styles.centeredFill]}>
-        <Text style={[styles.error, { color: theme.colors.primary }]}>
+        <Text style={[styles.error, { color: theme.colors.error }]}>
           {charsError ?? 'Could not read FCU characteristics'}
         </Text>
         <Pressable

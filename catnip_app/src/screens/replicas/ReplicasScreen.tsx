@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ConfirmModal } from '@/components/fcu-profiles';
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
 import type { ReplicaSummary } from '@/replicas';
@@ -28,6 +29,7 @@ export function ReplicasScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const selectionMode = selectedIds.size > 0;
   const nextScheme = colorScheme === 'dark' ? 'light' : 'dark';
@@ -65,7 +67,15 @@ export function ReplicasScreen() {
     }, [refresh]),
   );
 
-  const handleDeleteSelected = useCallback(async () => {
+  const handleRequestDeleteSelected = useCallback(() => {
+    if (selectedIds.size === 0) {
+      return;
+    }
+    setDeleteError(null);
+    setDeleteConfirmOpen(true);
+  }, [selectedIds.size]);
+
+  const handleConfirmDeleteSelected = useCallback(async () => {
     const ids = [...selectedIds];
     if (ids.length === 0) {
       return;
@@ -74,14 +84,28 @@ export function ReplicasScreen() {
     setDeleting(true);
     setDeleteError(null);
 
-    try {
-      await Promise.all(ids.map((id) => remove(id)));
-      clearSelection();
-    } catch (err: unknown) {
-      setDeleteError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDeleting(false);
+    const failed: string[] = [];
+    for (const id of ids) {
+      try {
+        await remove(id);
+      } catch {
+        failed.push(id);
+      }
     }
+
+    if (failed.length === 0) {
+      clearSelection();
+      setDeleteConfirmOpen(false);
+    } else {
+      setDeleteError(
+        failed.length === ids.length
+          ? 'Failed to delete selected replicas'
+          : `Deleted ${ids.length - failed.length} of ${ids.length} replicas`,
+      );
+      setSelectedIds(new Set(failed));
+    }
+
+    setDeleting(false);
   }, [clearSelection, remove, selectedIds]);
 
   const renderReplicaItem = useCallback(
@@ -195,11 +219,11 @@ export function ReplicasScreen() {
       </View>
 
       {error ? (
-        <Text style={[styles.error, { color: theme.colors.primary }]}>{error.message}</Text>
+        <Text style={[styles.error, { color: theme.colors.error }]}>{error.message}</Text>
       ) : null}
 
       {deleteError ? (
-        <Text style={[styles.error, { color: theme.colors.primary }]}>{deleteError}</Text>
+        <Text style={[styles.error, { color: theme.colors.error }]}>{deleteError}</Text>
       ) : null}
 
       {loading && replicas.length === 0 ? (
@@ -239,28 +263,39 @@ export function ReplicasScreen() {
           ]}
         >
           <Pressable
-            onPress={() => void handleDeleteSelected()}
+            onPress={clearSelection}
+            disabled={deleting}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel selection"
+            style={({ pressed }) => [styles.cancelButton, pressed && styles.iconButtonPressed]}
+          >
+            <Text style={[styles.cancelLabel, { color: theme.colors.foreground }]}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={handleRequestDeleteSelected}
             disabled={deleting}
             accessibilityRole="button"
             accessibilityLabel={`Delete ${selectedIds.size} replica${selectedIds.size === 1 ? '' : 's'}`}
             style={({ pressed }) => [
               styles.deleteButton,
               {
-                backgroundColor: theme.colors.primary,
+                backgroundColor: theme.colors.destructive,
                 opacity: pressed || deleting ? 0.6 : 1,
               },
             ]}
           >
             {deleting ? (
-              <ActivityIndicator color={theme.colors.primaryForeground} />
+              <ActivityIndicator color={theme.colors.destructiveForeground} />
             ) : (
               <>
                 <MaterialIcons
                   name="delete"
                   size={22}
-                  color={theme.colors.primaryForeground}
+                  color={theme.colors.destructiveForeground}
                 />
-                <Text style={[styles.deleteLabel, { color: theme.colors.primaryForeground }]}>
+                <Text
+                  style={[styles.deleteLabel, { color: theme.colors.destructiveForeground }]}
+                >
                   Delete {selectedIds.size === 1 ? 'replica' : `${selectedIds.size} replicas`}
                 </Text>
               </>
@@ -268,6 +303,20 @@ export function ReplicasScreen() {
           </Pressable>
         </View>
       ) : null}
+
+      <ConfirmModal
+        visible={deleteConfirmOpen}
+        title="Delete replicas?"
+        message={`Delete ${selectedIds.size} replica${selectedIds.size === 1 ? '' : 's'}? This cannot be undone.`}
+        confirmLabel="Delete"
+        confirming={deleting}
+        onConfirm={() => void handleConfirmDeleteSelected()}
+        onCancel={() => {
+          if (!deleting) {
+            setDeleteConfirmOpen(false);
+          }
+        }}
+      />
     </Screen>
   );
 }
@@ -345,6 +394,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+  },
+  cancelButton: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  cancelLabel: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   deleteButton: {
     flexDirection: 'row',

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CatnipBleClient } from '@/lib/catnip-ble-client';
 import {
   acquireFcuSession,
+  getFcuSessionCharacteristicsError,
   getFcuSessionSnapshot,
   reconnectFcuSession,
   releaseFcuSession,
@@ -44,13 +45,19 @@ export function useCatnipFcu(
   options: UseCatnipFcuOptions = {},
 ): UseCatnipFcuResult {
   const { enabled: enabledOption, manageConnection = true, onEvent } = options;
-  const { ready: bleReady, isBluetoothOn, error: managerError } = useBleManager();
+  const {
+    ready: bleReady,
+    isBluetoothOn,
+    bluetoothUnavailableMessage,
+    error: managerError,
+  } = useBleManager();
 
   const [status, setStatus] = useState<CatnipFcuStatus>('idle');
   const [client, setClient] = useState<CatnipBleClient | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastEvent, setLastEvent] = useState<FCUToHostEvent | null>(null);
   const [connectAttempt, setConnectAttempt] = useState(0);
+  const [characteristicsError, setCharacteristicsError] = useState<string | null>(null);
 
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
@@ -67,10 +74,15 @@ export function useCatnipFcu(
   }, []);
 
   useEffect(() => {
+    setConnectAttempt(0);
+  }, [peripheralId]);
+
+  useEffect(() => {
     if (!enabled || !peripheralId) {
       setStatus('idle');
       setClient(null);
       setError(null);
+      setCharacteristicsError(null);
       return;
     }
 
@@ -81,6 +93,9 @@ export function useCatnipFcu(
       setStatus(snapshot.status);
       setClient(snapshot.client);
       setError(snapshot.error);
+      setCharacteristicsError(
+        snapshot.characteristicsError ?? getFcuSessionCharacteristicsError(mac),
+      );
     };
 
     syncFromSession();
@@ -113,8 +128,9 @@ export function useCatnipFcu(
 
   const displayError =
     error ??
+    characteristicsError ??
     managerError ??
-    (!isBluetoothOn && bleReady ? 'Turn on Bluetooth to connect to the FCU.' : null);
+    (bleReady && !isBluetoothOn ? bluetoothUnavailableMessage : null);
 
   return {
     client,

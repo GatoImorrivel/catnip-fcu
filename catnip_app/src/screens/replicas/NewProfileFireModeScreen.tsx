@@ -16,13 +16,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { formatFireModeName } from '@/messages/types';
 import { Screen } from '@/screens/components';
 
-function parseFcuPosition(value: string | undefined): number | null {
-  if (value === undefined || value === '') {
-    return null;
-  }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
-}
+import { parseFcuPosition } from './parse-fcu-position';
 
 export function NewProfileFireModeScreen() {
   const router = useRouter();
@@ -55,6 +49,10 @@ export function NewProfileFireModeScreen() {
       setLoadError('Missing replica id');
       return;
     }
+    if (fcuPosition === null) {
+      setLoadError('Missing selector position');
+      return;
+    }
 
     let cancelled = false;
 
@@ -81,7 +79,7 @@ export function NewProfileFireModeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [get, replicaId]);
+  }, [fcuPosition, get, replicaId]);
 
   const handlePickFireMode = useCallback(
     (firemode: string) => {
@@ -131,7 +129,7 @@ export function NewProfileFireModeScreen() {
 
       {listError ? (
         <View style={styles.statusBlock}>
-          <Text style={[styles.errorText, { color: theme.colors.primary }]}>{listError}</Text>
+          <Text style={[styles.errorText, { color: theme.colors.error }]}>{listError}</Text>
           {modesError && peripheralId ? (
             <Pressable onPress={reconnect} style={({ pressed }) => pressed && styles.pressed}>
               <Text style={[styles.retryText, { color: theme.colors.foreground }]}>Retry</Text>

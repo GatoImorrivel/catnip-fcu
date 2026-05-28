@@ -4,13 +4,16 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { BleState } from 'react-native-ble-manager';
 import type { Peripheral } from 'react-native-ble-manager';
 
+import { useBleManager } from '@/hooks/use-ble-manager';
 import { useBleScan } from '@/hooks/use-ble-scan';
 import { useTheme } from '@/hooks/use-theme';
 import { getPeripheralLabel } from '@/lib/ble-peripheral';
@@ -23,6 +26,7 @@ import { Screen } from '@/screens/components';
 export function SelectCatnipFcuScreen() {
   const router = useRouter();
   const { theme } = useTheme();
+  const { bluetoothState, isBluetoothUnauthorized } = useBleManager();
   const { devices, isScanning, error, ready, isBluetoothOn, startScan, stopScan } =
     useBleScan();
   const [connectingId, setConnectingId] = useState<string | null>(null);
@@ -70,9 +74,26 @@ export function SelectCatnipFcuScreen() {
   );
 
   const displayError =
-    connectError ?? error ?? (!isBluetoothOn && ready ? 'Turn on Bluetooth to scan.' : null);
+    connectError ??
+    error ??
+    (!isBluetoothOn && ready && bluetoothState === BleState.Unauthorized
+      ? 'Bluetooth permission denied. Enable access in Settings to scan.'
+      : !isBluetoothOn && ready
+        ? 'Turn on Bluetooth to scan.'
+        : null);
 
   const isConnecting = connectingId !== null;
+
+  const handleRetryScan = useCallback(() => {
+    setConnectError(null);
+    if (isBluetoothUnauthorized) {
+      void Linking.openSettings();
+      return;
+    }
+    if (ready && isBluetoothOn) {
+      void startScan().catch(() => undefined);
+    }
+  }, [isBluetoothOn, isBluetoothUnauthorized, ready, startScan]);
 
   return (
     <Screen>
@@ -94,7 +115,21 @@ export function SelectCatnipFcuScreen() {
       </Text>
 
       {displayError ? (
-        <Text style={[styles.error, { color: theme.colors.primary }]}>{displayError}</Text>
+        <View style={styles.errorBlock}>
+          <Text style={[styles.error, { color: theme.colors.error }]}>{displayError}</Text>
+          <Pressable
+            onPress={handleRetryScan}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isBluetoothUnauthorized ? 'Open app settings' : 'Retry scan'
+            }
+            style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
+          >
+            <Text style={[styles.retryLabel, { color: theme.colors.foreground }]}>
+              {isBluetoothUnauthorized ? 'Open Settings' : 'Retry'}
+            </Text>
+          </Pressable>
+        </View>
       ) : null}
 
       {isScanning || !ready ? (
@@ -175,9 +210,20 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     marginBottom: 12,
   },
+  errorBlock: {
+    gap: 8,
+    marginBottom: 8,
+  },
   error: {
     fontSize: 14,
-    marginBottom: 8,
+  },
+  retryButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
+  retryLabel: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   scanningRow: {
     flexDirection: 'row',

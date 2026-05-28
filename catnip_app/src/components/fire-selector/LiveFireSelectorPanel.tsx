@@ -121,7 +121,7 @@ export function LiveFireSelectorPanel({
   if (error || connectionStatus === 'error') {
     return (
       <View style={styles.centered}>
-        <Text style={[styles.errorText, { color: theme.colors.primary }]}>
+        <Text style={[styles.errorText, { color: theme.colors.error }]}>
           {error ?? 'Could not connect to FCU'}
         </Text>
         <Pressable

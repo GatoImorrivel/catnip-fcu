@@ -230,7 +230,7 @@ export function ConfigureReplicaMappingScreen() {
   if (loadError) {
     return (
       <Screen>
-        <Text style={[styles.error, { color: theme.colors.primary }]}>{loadError}</Text>
+        <Text style={[styles.error, { color: theme.colors.error }]}>{loadError}</Text>
         <Pressable onPress={() => router.back()}>
           <Text style={{ color: theme.colors.foreground, fontWeight: '600' }}>Go back</Text>
         </Pressable>
@@ -272,12 +272,12 @@ export function ConfigureReplicaMappingScreen() {
             peripheralId={peripheralId}
             mapping={selectorPositionMapping}
           />
-          {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
+          {error ? <Text style={[styles.error, { color: theme.colors.error }]}>{error}</Text> : null}
         </View>
       ) : (
         <View style={[styles.body, styles.bodyContentFlex]}>
           {fireSelectorMappingStep}
-          {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
+          {error ? <Text style={[styles.error, { color: theme.colors.error }]}>{error}</Text> : null}
         </View>
       )}
 

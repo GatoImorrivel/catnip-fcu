@@ -8,8 +8,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import {
-  INVALID_FIELD_BACKGROUND_COLOR,
-  INVALID_FIELD_BORDER_COLOR,
+  invalidFieldBackgroundColor,
+  invalidFieldBorderColor,
 } from '@/components/form/invalid-field-styles';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -78,7 +78,7 @@ function NumericFireModeConfigSchemaField({
         <Text
           style={[
             styles.range,
-            { color: invalid ? INVALID_FIELD_BORDER_COLOR : theme.colors.muted },
+            { color: invalid ? invalidFieldBorderColor(theme) : theme.colors.muted },
           ]}
         >
           {rangeText}
@@ -89,10 +89,10 @@ function NumericFireModeConfigSchemaField({
           shakeStyle,
           styles.inputWrap,
           {
-            borderColor: invalid ? INVALID_FIELD_BORDER_COLOR : theme.colors.border,
+            borderColor: invalid ? invalidFieldBorderColor(theme) : theme.colors.border,
             borderWidth: invalid ? 2 : StyleSheet.hairlineWidth,
             backgroundColor: invalid
-              ? INVALID_FIELD_BACKGROUND_COLOR
+              ? invalidFieldBackgroundColor(theme)
               : theme.colors.background,
           },
         ]}

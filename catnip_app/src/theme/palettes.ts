@@ -9,6 +9,9 @@ export const lightTheme: Theme = {
     border: '#e5e5e5',
     primary: '#171717',
     primaryForeground: '#fafafa',
+    error: '#dc2626',
+    destructive: '#dc2626',
+    destructiveForeground: '#ffffff',
   },
 };
 
@@ -20,6 +23,9 @@ export const darkTheme: Theme = {
     border: '#262626',
     primary: '#fafafa',
     primaryForeground: '#171717',
+    error: '#f87171',
+    destructive: '#ef4444',
+    destructiveForeground: '#ffffff',
   },
 };
 

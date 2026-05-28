@@ -116,11 +116,6 @@ export class CatnipBleClient {
   private async setup(): Promise<number> {
     await BleManager.retrieveServices(this.peripheralId, [CATNIP_FCU_SERVICE_UUID]);
     const mtu = await negotiateMtu(this.peripheralId);
-    await BleManager.startNotification(
-      this.peripheralId,
-      CATNIP_FCU_SERVICE_UUID,
-      FCU_TO_HOST_UUID,
-    );
 
     this.notificationSubscription = BleManager.onDidUpdateValueForCharacteristic((event) => {
       if (event.peripheral !== this.peripheralId) {
@@ -131,6 +126,12 @@ export class CatnipBleClient {
       }
       this.appendNotification(numbersToUint8Array(event.value));
     });
+
+    await BleManager.startNotification(
+      this.peripheralId,
+      CATNIP_FCU_SERVICE_UUID,
+      FCU_TO_HOST_UUID,
+    );
 
     return mtu;
   }
@@ -300,7 +301,7 @@ export class CatnipBleClient {
     }
 
     catnipBleLog.unknownFrame(this.peripheralId, tag, data.length);
-    return data.length;
+    return 1;
   }
 
   private tryProcessReplyFrame(frame: Uint8Array, body: Uint8Array): number {

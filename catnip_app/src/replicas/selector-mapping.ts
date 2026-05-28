@@ -18,6 +18,25 @@ export function isGunSlotSelectionComplete(
   return selectedGunSlotIds.length === requiredCount;
 }
 
+export function hasDuplicateUiSlotIds(mapping: SelectorPositionMappingEntry[]): boolean {
+  const seen = new Set<FireSelectorSlotId>();
+  for (const entry of mapping) {
+    if (seen.has(entry.uiSlotId)) {
+      return true;
+    }
+    seen.add(entry.uiSlotId);
+  }
+  return false;
+}
+
+export function isValidFcuPosition(fcuPosition: number, fcuNumPositions: number): boolean {
+  return (
+    Number.isInteger(fcuPosition) &&
+    fcuPosition >= 0 &&
+    fcuPosition < fcuNumPositions
+  );
+}
+
 export function hasDuplicateFcuPositions(mapping: SelectorPositionMappingEntry[]): boolean {
   const seen = new Set<number>();
   for (const entry of mapping) {
@@ -39,16 +58,19 @@ export function isMappingComplete(
   if (mapping.length !== required) {
     return false;
   }
-  if (hasDuplicateFcuPositions(mapping)) {
+  if (hasDuplicateFcuPositions(mapping) || hasDuplicateUiSlotIds(mapping)) {
     return false;
   }
-  return mapping.every(
-    (entry) =>
-      typeof entry.uiSlotId === 'string' &&
-      entry.uiSlotId.length > 0 &&
-      Number.isInteger(entry.fcuPosition) &&
-      entry.fcuPosition >= 0,
-  );
+  return mapping.every((entry) => {
+    if (
+      typeof entry.uiSlotId !== 'string' ||
+      entry.uiSlotId.length === 0 ||
+      !isValidFcuPosition(entry.fcuPosition, fcuNumPositions)
+    ) {
+      return false;
+    }
+    return getSlotById(type, entry.uiSlotId) !== undefined;
+  });
 }
 
 export function getMappingEntryForSlot(
@@ -124,7 +146,8 @@ function isValidMappingEntry(value: unknown): value is SelectorPositionMappingEn
     entry.uiSlotId.length > 0 &&
     typeof entry.fcuPosition === 'number' &&
     Number.isInteger(entry.fcuPosition) &&
-    entry.fcuPosition >= 0
+    entry.fcuPosition >= 0 &&
+    entry.fcuPosition < 256
   );
 }
 

@@ -31,8 +31,8 @@ export function ProfileDropdown({
 }: ProfileDropdownProps) {
   const { theme } = useTheme();
 
-  const selected = profiles.find((profile) => profile.id === value) ?? profiles[0] ?? null;
-  const effectiveValue = value ?? selected?.id ?? null;
+  const selected = value ? (profiles.find((profile) => profile.id === value) ?? null) : null;
+  const effectiveValue = value;
 
   const options = useMemo(
     () =>

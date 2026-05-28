@@ -30,15 +30,9 @@ import { useTheme } from '@/hooks/use-theme';
 import { formatFireModeName } from '@/messages/types';
 import { Screen } from '@/screens/components';
 
-const LIVE_PUSH_DEBOUNCE_MS = 400;
+import { parseFcuPosition } from './parse-fcu-position';
 
-function parseFcuPosition(value: string | undefined): number | null {
-  if (value === undefined || value === '') {
-    return null;
-  }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
-}
+const LIVE_PUSH_DEBOUNCE_MS = 400;
 
 export function EditProfileScreen() {
   const router = useRouter();
@@ -416,7 +410,8 @@ export function EditProfileScreen() {
     fcuPosition === null ||
     !schema ||
     schemaLoading ||
-    !schemaInitialized;
+    !schemaInitialized ||
+    Boolean(displayError);
 
   const handleSavePress = useCallback(() => {
     if (saveButtonDisabled) {
@@ -469,7 +464,7 @@ export function EditProfileScreen() {
 
       {displayError ? (
         <View style={styles.statusBlock}>
-          <Text style={[styles.errorText, { color: theme.colors.primary }]}>{displayError}</Text>
+          <Text style={[styles.errorText, { color: theme.colors.error }]}>{displayError}</Text>
           {schemaError && peripheralId ? (
             <Pressable onPress={reconnect} style={({ pressed }) => pressed && styles.pressed}>
               <Text style={[styles.retryText, { color: theme.colors.foreground }]}>Retry</Text>

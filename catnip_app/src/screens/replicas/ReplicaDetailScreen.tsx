@@ -8,6 +8,7 @@ import { LiveFireSelectorPanel } from '@/components/fire-selector/LiveFireSelect
 import {
   getDefaultProfileId,
   getProfileDisplayName,
+  migrateCompatibilityId,
   parseSelectorPositionProfiles,
   profileIdForPosition,
   upsertPositionProfileAssignment,
@@ -49,6 +50,10 @@ export function ReplicaDetailScreen() {
     SelectorPositionProfileAssignment[]
   >([]);
   const [replicaError, setReplicaError] = useState<string | null>(null);
+  const [assignmentPersistError, setAssignmentPersistError] = useState<string | null>(null);
+  const [compatibilityMigrationError, setCompatibilityMigrationError] = useState<string | null>(
+    null,
+  );
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTargetProfileId, setDeleteTargetProfileId] = useState<FcuProfileId | null>(null);
   const [deletingProfile, setDeletingProfile] = useState(false);
@@ -75,14 +80,19 @@ export function ReplicaDetailScreen() {
   positionAssignmentsRef.current = positionAssignments;
 
   const persistAssignments = useCallback(
-    async (assignments: SelectorPositionProfileAssignment[]) => {
+    async (assignments: SelectorPositionProfileAssignment[]): Promise<boolean> => {
       if (!replicaId) {
-        return;
+        return false;
       }
       try {
         await update(replicaId, { selectorPositionProfiles: assignments });
-      } catch {
-        // UI-only phase: keep local state if persistence fails
+        setAssignmentPersistError(null);
+        return true;
+      } catch (err: unknown) {
+        setAssignmentPersistError(
+          err instanceof Error ? err.message : 'Failed to save profile assignment',
+        );
+        return false;
       }
     },
     [replicaId, update],
@@ -139,12 +149,50 @@ export function ReplicaDetailScreen() {
     if (!replicaId || !compatibilityId) {
       return;
     }
+
+    let cancelled = false;
+
+    const syncCompatibilityId = async () => {
+      try {
+        if (
+          storedCompatibilityId &&
+          storedCompatibilityId !== compatibilityId
+        ) {
+          await migrateCompatibilityId(storedCompatibilityId, compatibilityId);
+          const refreshed = await get(replicaId);
+          if (cancelled) {
+            return;
+          }
+          if (refreshed) {
+            setPositionAssignments(parseSelectorPositionProfiles(refreshed));
+          }
+        }
+
+        await update(replicaId, { fcuCompatibilityId: compatibilityId });
+        if (!cancelled) {
+          setStoredCompatibilityId(compatibilityId);
+          setCompatibilityMigrationError(null);
+          fcuProfiles.refresh().catch(() => undefined);
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setCompatibilityMigrationError(
+            err instanceof Error ? err.message : 'Failed to update FCU compatibility',
+          );
+        }
+      }
+    };
+
     if (storedCompatibilityId === compatibilityId) {
       return;
     }
-    setStoredCompatibilityId(compatibilityId);
-    void update(replicaId, { fcuCompatibilityId: compatibilityId }).catch(() => undefined);
-  }, [compatibilityId, replicaId, storedCompatibilityId, update]);
+
+    void syncCompatibilityId();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [compatibilityId, fcuProfiles, get, replicaId, storedCompatibilityId, update]);
 
   const hasMapping = selectorPositionMapping.length > 0;
 
@@ -168,24 +216,36 @@ export function ReplicaDetailScreen() {
 
   const profileIdForActivePosition = useCallback(
     (fcuPosition: number) => {
-      return (
-        profileIdForPosition(positionAssignments, fcuPosition) ??
-        fcuProfiles.profiles[0]?.id ??
-        null
-      );
+      return profileIdForPosition(positionAssignments, fcuPosition);
     },
-    [fcuProfiles.profiles, positionAssignments],
+    [positionAssignments],
   );
 
   const assignProfileToPosition = useCallback(
     (fcuPosition: number, profileId: FcuProfileId) => {
       clearSyncError();
-      setPositionAssignments((prev) => {
-        const next = upsertPositionProfileAssignment(prev, fcuPosition, profileId);
-        void persistAssignments(next);
-        void pushProfileAtPosition(fcuPosition, profileId);
-        return next;
-      });
+      const previous = positionAssignmentsRef.current;
+      const next = upsertPositionProfileAssignment(previous, fcuPosition, profileId);
+      setPositionAssignments(next);
+
+      void (async () => {
+        const persisted = await persistAssignments(next);
+        if (!persisted) {
+          setPositionAssignments(previous);
+          return;
+        }
+
+        try {
+          const bleError = await pushProfileAtPosition(fcuPosition, profileId);
+          if (bleError !== null) {
+            setPositionAssignments(previous);
+            await persistAssignments(previous);
+          }
+        } catch {
+          setPositionAssignments(previous);
+          await persistAssignments(previous);
+        }
+      })();
     },
     [clearSyncError, persistAssignments, pushProfileAtPosition],
   );
@@ -240,6 +300,9 @@ export function ReplicaDetailScreen() {
     }
 
     const profileId = profileIdForActivePosition(activeFcuPosition);
+    if (!profileId) {
+      return;
+    }
     const profile = fcuProfiles.getProfileById(profileId);
     if (!profile || profile.isDefault) {
       return;
@@ -278,29 +341,6 @@ export function ReplicaDetailScreen() {
     }, [exitToReplicasList]),
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      if (
-        activeFcuPosition === null ||
-        !selectorReady ||
-        selectorUnmapped ||
-        !peripheralId
-      ) {
-        return;
-      }
-      void pushAssignmentForPosition(
-        activeFcuPosition,
-        positionAssignmentsRef.current,
-      );
-    }, [
-      activeFcuPosition,
-      peripheralId,
-      pushAssignmentForPosition,
-      selectorReady,
-      selectorUnmapped,
-    ]),
-  );
-
   const deleteTargetProfile = deleteTargetProfileId
     ? fcuProfiles.getProfileById(deleteTargetProfileId)
     : undefined;
@@ -311,6 +351,9 @@ export function ReplicaDetailScreen() {
     }
 
     const profileId = profileIdForActivePosition(activeFcuPosition);
+    if (!profileId) {
+      return;
+    }
     const profile = fcuProfiles.getProfileById(profileId);
     if (!profile || profile.isDefault) {
       return;
@@ -417,7 +460,15 @@ export function ReplicaDetailScreen() {
         </View>
 
         {replicaError ? (
-          <Text style={[styles.error, { color: theme.colors.primary }]}>{replicaError}</Text>
+          <Text style={[styles.error, { color: theme.colors.error }]}>{replicaError}</Text>
+        ) : null}
+        {fcuProfiles.error ? (
+          <Text style={[styles.error, { color: theme.colors.error }]}>{fcuProfiles.error}</Text>
+        ) : null}
+        {compatibilityMigrationError ? (
+          <Text style={[styles.error, { color: theme.colors.error }]}>
+            {compatibilityMigrationError}
+          </Text>
         ) : null}
 
         {hasMapping && replicaType && peripheralId ? (
@@ -464,13 +515,18 @@ export function ReplicaDetailScreen() {
                   onPressDelete={handleRequestDeleteProfile}
                   deleting={deletingProfile}
                 />
+                {assignmentPersistError ? (
+                  <Text style={[styles.deleteError, { color: theme.colors.error }]}>
+                    {assignmentPersistError}
+                  </Text>
+                ) : null}
                 {syncError ? (
-                  <Text style={[styles.deleteError, { color: theme.colors.primary }]}>
+                  <Text style={[styles.deleteError, { color: theme.colors.error }]}>
                     {syncError}
                   </Text>
                 ) : null}
                 {deleteProfileError ? (
-                  <Text style={[styles.deleteError, { color: theme.colors.primary }]}>
+                  <Text style={[styles.deleteError, { color: theme.colors.error }]}>
                     {deleteProfileError}
                   </Text>
                 ) : null}

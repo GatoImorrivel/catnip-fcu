@@ -56,7 +56,7 @@ export function FireSelectorMappingCard({
       ) : null}
 
       {error ? (
-        <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text>
+        <Text style={[styles.error, { color: theme.colors.error }]}>{error}</Text>
       ) : null}
 
       <Pressable

@@ -33,10 +33,7 @@ export async function resolveProfileForPosition(
   assignments: SelectorPositionProfileAssignment[],
   fcuPosition: number,
 ): Promise<FcuProfile | null> {
-  const profiles = await listProfiles(compatibilityId);
-  const profileId =
-    profileIdForPosition(assignments, fcuPosition) ?? profiles[0]?.id ?? null;
-
+  const profileId = profileIdForPosition(assignments, fcuPosition);
   if (!profileId) {
     return null;
   }

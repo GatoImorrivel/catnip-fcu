@@ -249,7 +249,7 @@ export function NewProfileConfigScreen() {
 
       {displayError ? (
         <View style={styles.statusBlock}>
-          <Text style={[styles.errorText, { color: theme.colors.primary }]}>{displayError}</Text>
+          <Text style={[styles.errorText, { color: theme.colors.error }]}>{displayError}</Text>
           {schemaError && peripheralId ? (
             <Pressable onPress={reconnect} style={({ pressed }) => pressed && styles.pressed}>
               <Text style={[styles.retryText, { color: theme.colors.foreground }]}>Retry</Text>

@@ -13,7 +13,12 @@ function isFireSelectorPivot(value: unknown): value is FireSelectorPivot {
     return false;
   }
   const record = value as Record<string, unknown>;
-  return typeof record.x === 'number' && typeof record.y === 'number';
+  return (
+    typeof record.x === 'number' &&
+    typeof record.y === 'number' &&
+    Number.isFinite(record.x) &&
+    Number.isFinite(record.y)
+  );
 }
 
 export function getFireSelectorPivot(type: ReplicaType): FireSelectorPivot {

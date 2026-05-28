@@ -32,18 +32,12 @@ import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
 import { formatFireModeName, type FireModeName } from '@/messages/types';
 import {
-  INVALID_FIELD_BACKGROUND_COLOR,
-  INVALID_FIELD_BORDER_COLOR,
+  invalidFieldBackgroundColor,
+  invalidFieldBorderColor,
 } from '@/components/form/invalid-field-styles';
 import { Screen } from '@/screens/components';
 
-function parseFcuPosition(value: string | undefined): number | null {
-  if (value === undefined || value === '') {
-    return null;
-  }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
-}
+import { parseFcuPosition } from './parse-fcu-position';
 
 type ProfileNameInputProps = {
   value: string;
@@ -92,10 +86,10 @@ function ProfileNameInput({
         shakeStyle,
         styles.inputWrap,
         {
-          borderColor: invalid ? INVALID_FIELD_BORDER_COLOR : theme.colors.border,
+          borderColor: invalid ? invalidFieldBorderColor(theme) : theme.colors.border,
           borderWidth: invalid ? 2 : StyleSheet.hairlineWidth,
           backgroundColor: invalid
-            ? INVALID_FIELD_BACKGROUND_COLOR
+            ? invalidFieldBackgroundColor(theme)
             : theme.colors.background,
         },
       ]}
@@ -141,17 +135,22 @@ export function NewProfileNameScreen() {
   const [profileName, setProfileName] = useState('');
   const [creating, setCreating] = useState(false);
   const [nameShakeTrigger, setNameShakeTrigger] = useState(0);
+  const [nameTouched, setNameTouched] = useState(false);
   const creationCommittedRef = useRef(false);
 
   const compatibilityId = useFcuProfileCatalogKey(peripheralId, storedCompatibilityId);
   const fcuProfiles = useFcuProfiles(compatibilityId);
-  const { pushProfileAtPosition, syncError } = useProfileFcuSync({
+  const { pushProfileAtPosition, syncError, clearSyncError } = useProfileFcuSync({
     peripheralId,
     compatibilityId,
   });
-  const { data: fireModeSchema } = useFcuFireModeConfigFields(peripheralId, firemodeName, {
-    fetchEnabled: peripheralId !== null && firemodeName !== null,
-  });
+  const { data: fireModeSchema, loading: schemaLoading } = useFcuFireModeConfigFields(
+    peripheralId,
+    firemodeName,
+    {
+      fetchEnabled: peripheralId !== null && firemodeName !== null,
+    },
+  );
 
   useEffect(() => {
     if (!replicaId) {
@@ -217,6 +216,7 @@ export function NewProfileNameScreen() {
     [profileName, validateName],
   );
   const showNameInvalid =
+    nameTouched &&
     nameValidationError !== null &&
     !creating &&
     !creationCommittedRef.current;
@@ -255,6 +255,13 @@ export function NewProfileNameScreen() {
 
       const bleError = await pushProfileAtPosition(fcuPosition, created.id);
       if (bleError !== null) {
+        await fcuProfiles.deleteCustomProfile(created.id);
+        const afterRollback = await get(replicaId);
+        if (afterRollback) {
+          await update(replicaId, {
+            selectorPositionProfiles: parseSelectorPositionProfiles(afterRollback),
+          });
+        }
         setCreating(false);
         return;
       }
@@ -295,16 +302,16 @@ export function NewProfileNameScreen() {
 
   const canCreate =
     !loadError &&
-    !syncError &&
     !creating &&
     fireModeSchema !== null &&
+    !schemaLoading &&
     firemodeName !== null &&
     fcuPosition !== null &&
     compatibilityId !== null &&
     nameValidationError === null;
 
   const createButtonDisabled =
-    creating || Boolean(loadError) || Boolean(syncError) || fireModeSchema === null;
+    creating || Boolean(loadError) || schemaLoading || fireModeSchema === null;
 
   const handleCreatePress = useCallback(() => {
     if (createButtonDisabled) {
@@ -344,15 +351,40 @@ export function NewProfileNameScreen() {
       ) : null}
 
       {loadError || syncError ? (
-        <Text style={[styles.errorText, { color: theme.colors.primary }]}>
-          {loadError ?? syncError}
-        </Text>
+        <View style={styles.errorBlock}>
+          <Text style={[styles.errorText, { color: theme.colors.error }]}>
+            {loadError ?? syncError}
+          </Text>
+          {syncError && !loadError ? (
+            <Pressable
+              onPress={() => {
+                clearSyncError();
+                void handleCreate();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Retry sync to FCU"
+              style={({ pressed }) => pressed && styles.pressed}
+            >
+              <Text style={[styles.retryLabel, { color: theme.colors.foreground }]}>Retry</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {schemaLoading ? (
+        <View style={styles.schemaLoadingRow}>
+          <ActivityIndicator color={theme.colors.primary} />
+          <Text style={{ color: theme.colors.muted }}>Loading fire mode schema…</Text>
+        </View>
       ) : null}
 
       <Text style={[styles.label, { color: theme.colors.muted }]}>Name</Text>
       <ProfileNameInput
         value={profileName}
-        onChangeText={setProfileName}
+        onChangeText={(text) => {
+          setNameTouched(true);
+          setProfileName(text);
+        }}
         editable={!creating}
         invalid={showNameInvalid}
         shakeTrigger={nameShakeTrigger}
@@ -437,8 +469,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 18,
   },
+  errorBlock: {
+    gap: 8,
+    marginBottom: 12,
+  },
   errorText: {
     fontSize: 14,
+  },
+  retryLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  schemaLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: 12,
   },
   footer: {

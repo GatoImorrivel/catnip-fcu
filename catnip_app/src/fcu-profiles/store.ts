@@ -4,6 +4,7 @@ import type { KeyValueStore } from '@/replicas/persistence';
 import { defaultKeyValueStore } from '@/replicas/persistence';
 import { formatFireModeName, type FireModeName } from '@/messages/types';
 
+import { ProfileStoreLoadError } from './errors';
 import { MOCK_SUPPORTED_FIRE_MODES } from './mock-firemode-schemas';
 import {
   loadProfileDatabase,
@@ -15,22 +16,41 @@ import { reassignReplicasAfterProfileDelete } from './reassign-on-profile-delete
 import type { FcuProfile, FcuProfileCatalog, FcuProfileId } from './types';
 
 let cachedDatabase: ProfileDatabase | null = null;
+let writeChain: Promise<void> = Promise.resolve();
 
 function invalidateCache(): void {
   cachedDatabase = null;
+}
+
+async function withStoreLock<T>(operation: () => Promise<T>): Promise<T> {
+  const run = writeChain.then(operation);
+  writeChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }
 
 async function readDatabase(store: KeyValueStore): Promise<ProfileDatabase> {
   if (cachedDatabase) {
     return cachedDatabase;
   }
-  cachedDatabase = await loadProfileDatabase(store);
-  return cachedDatabase;
+  try {
+    cachedDatabase = await loadProfileDatabase(store);
+    return cachedDatabase;
+  } catch (err: unknown) {
+    if (err instanceof ProfileStoreLoadError) {
+      throw err;
+    }
+    throw new ProfileStoreLoadError(
+      err instanceof Error ? err.message : 'Failed to load profile database',
+    );
+  }
 }
 
 async function writeDatabase(database: ProfileDatabase, store: KeyValueStore): Promise<void> {
-  cachedDatabase = database;
   await saveProfileDatabase(database, store);
+  cachedDatabase = database;
 }
 
 export function getDefaultProfileId(
@@ -62,16 +82,18 @@ export async function getOrCreateCatalog(
   compatibilityId: string,
   store: KeyValueStore = defaultKeyValueStore,
 ): Promise<FcuProfileCatalog> {
-  const database = await readDatabase(store);
-  const existing = database.catalogs[compatibilityId];
-  if (existing) {
-    return existing;
-  }
+  return withStoreLock(async () => {
+    const database = await readDatabase(store);
+    const existing = database.catalogs[compatibilityId];
+    if (existing) {
+      return existing;
+    }
 
-  const catalog = seedDefaultProfiles(compatibilityId);
-  database.catalogs[compatibilityId] = catalog;
-  await writeDatabase(database, store);
-  return catalog;
+    const catalog = seedDefaultProfiles(compatibilityId);
+    database.catalogs[compatibilityId] = catalog;
+    await writeDatabase(database, store);
+    return catalog;
+  });
 }
 
 export async function listProfiles(
@@ -96,26 +118,28 @@ export async function addProfile(
   input: Omit<FcuProfile, 'id'> & { id?: FcuProfileId },
   store: KeyValueStore = defaultKeyValueStore,
 ): Promise<FcuProfile> {
-  const database = await readDatabase(store);
-  const catalog = database.catalogs[compatibilityId] ?? seedDefaultProfiles(compatibilityId);
-  if (!database.catalogs[compatibilityId]) {
-    database.catalogs[compatibilityId] = catalog;
-  }
+  return withStoreLock(async () => {
+    const database = await readDatabase(store);
+    const catalog = database.catalogs[compatibilityId] ?? seedDefaultProfiles(compatibilityId);
+    if (!database.catalogs[compatibilityId]) {
+      database.catalogs[compatibilityId] = catalog;
+    }
 
-  if (!input.isDefault) {
-    assertUniqueProfileNameInProfiles(catalog.profiles, input.name);
-  }
+    if (!input.isDefault) {
+      assertUniqueProfileNameInProfiles(catalog.profiles, input.name);
+    }
 
-  const profile: FcuProfile = {
-    id: input.id ?? ExpoCrypto.randomUUID(),
-    name: input.name.trim(),
-    firemodeName: input.firemodeName,
-    config: { ...input.config },
-    isDefault: input.isDefault ?? false,
-  };
-  catalog.profiles.push(profile);
-  await writeDatabase(database, store);
-  return profile;
+    const profile: FcuProfile = {
+      id: input.id ?? ExpoCrypto.randomUUID(),
+      name: input.name.trim(),
+      firemodeName: input.firemodeName,
+      config: { ...input.config },
+      isDefault: input.isDefault ?? false,
+    };
+    catalog.profiles.push(profile);
+    await writeDatabase(database, store);
+    return profile;
+  });
 }
 
 export async function removeProfile(
@@ -123,32 +147,35 @@ export async function removeProfile(
   profileId: FcuProfileId,
   store: KeyValueStore = defaultKeyValueStore,
 ): Promise<void> {
-  const database = await readDatabase(store);
-  const catalog = database.catalogs[compatibilityId];
-  if (!catalog) {
-    throw new Error('Profile not found');
-  }
+  return withStoreLock(async () => {
+    const database = await readDatabase(store);
+    const catalog = database.catalogs[compatibilityId];
+    if (!catalog) {
+      throw new Error('Profile not found');
+    }
 
-  const index = catalog.profiles.findIndex((profile) => profile.id === profileId);
-  if (index < 0) {
-    throw new Error('Profile not found');
-  }
+    const index = catalog.profiles.findIndex((profile) => profile.id === profileId);
+    if (index < 0) {
+      throw new Error('Profile not found');
+    }
 
-  const removed = catalog.profiles[index];
-  if (removed.isDefault) {
-    throw new Error('Default profiles cannot be deleted');
-  }
+    const removed = catalog.profiles[index];
+    if (removed.isDefault) {
+      throw new Error('Default profiles cannot be deleted');
+    }
 
-  const replacementProfileId = getDefaultProfileId(compatibilityId, removed.firemodeName);
-  catalog.profiles.splice(index, 1);
-  await writeDatabase(database, store);
+    const replacementProfileId = getDefaultProfileId(compatibilityId, removed.firemodeName);
 
-  await reassignReplicasAfterProfileDelete(
-    compatibilityId,
-    profileId,
-    replacementProfileId,
-    store,
-  );
+    await reassignReplicasAfterProfileDelete(
+      compatibilityId,
+      profileId,
+      replacementProfileId,
+      store,
+    );
+
+    catalog.profiles.splice(index, 1);
+    await writeDatabase(database, store);
+  });
 }
 
 export async function setDefaultProfileConfig(
@@ -157,36 +184,38 @@ export async function setDefaultProfileConfig(
   config: Record<string, string>,
   store: KeyValueStore = defaultKeyValueStore,
 ): Promise<FcuProfile> {
-  const database = await readDatabase(store);
-  const catalog = database.catalogs[compatibilityId] ?? seedDefaultProfiles(compatibilityId);
-  if (!database.catalogs[compatibilityId]) {
-    database.catalogs[compatibilityId] = catalog;
-  }
+  return withStoreLock(async () => {
+    const database = await readDatabase(store);
+    const catalog = database.catalogs[compatibilityId] ?? seedDefaultProfiles(compatibilityId);
+    if (!database.catalogs[compatibilityId]) {
+      database.catalogs[compatibilityId] = catalog;
+    }
 
-  const index = catalog.profiles.findIndex(
-    (profile) => profile.isDefault && profile.firemodeName === firemodeName,
-  );
+    const index = catalog.profiles.findIndex(
+      (profile) => profile.isDefault && profile.firemodeName === firemodeName,
+    );
 
-  if (index < 0) {
-    const profile: FcuProfile = {
-      id: defaultProfileId(compatibilityId, firemodeName),
-      name: formatFireModeName(firemodeName),
-      firemodeName,
+    if (index < 0) {
+      const profile: FcuProfile = {
+        id: defaultProfileId(compatibilityId, firemodeName),
+        name: formatFireModeName(firemodeName),
+        firemodeName,
+        config: { ...config },
+        isDefault: true,
+      };
+      catalog.profiles.push(profile);
+      await writeDatabase(database, store);
+      return profile;
+    }
+
+    const updated: FcuProfile = {
+      ...catalog.profiles[index],
       config: { ...config },
-      isDefault: true,
     };
-    catalog.profiles.push(profile);
+    catalog.profiles[index] = updated;
     await writeDatabase(database, store);
-    return profile;
-  }
-
-  const updated: FcuProfile = {
-    ...catalog.profiles[index],
-    config: { ...config },
-  };
-  catalog.profiles[index] = updated;
-  await writeDatabase(database, store);
-  return updated;
+    return updated;
+  });
 }
 
 export async function updateProfile(
@@ -195,29 +224,31 @@ export async function updateProfile(
   config: Record<string, string>,
   store: KeyValueStore = defaultKeyValueStore,
 ): Promise<FcuProfile> {
-  const database = await readDatabase(store);
-  const catalog = database.catalogs[compatibilityId];
-  if (!catalog) {
-    throw new Error('Profile not found');
-  }
+  return withStoreLock(async () => {
+    const database = await readDatabase(store);
+    const catalog = database.catalogs[compatibilityId];
+    if (!catalog) {
+      throw new Error('Profile not found');
+    }
 
-  const index = catalog.profiles.findIndex((profile) => profile.id === profileId);
-  if (index < 0) {
-    throw new Error('Profile not found');
-  }
+    const index = catalog.profiles.findIndex((profile) => profile.id === profileId);
+    if (index < 0) {
+      throw new Error('Profile not found');
+    }
 
-  const existing = catalog.profiles[index];
-  if (existing.isDefault) {
-    throw new Error('Default profiles cannot be edited');
-  }
+    const existing = catalog.profiles[index];
+    if (existing.isDefault) {
+      throw new Error('Default profiles cannot be edited');
+    }
 
-  const updated: FcuProfile = {
-    ...existing,
-    config: { ...config },
-  };
-  catalog.profiles[index] = updated;
-  await writeDatabase(database, store);
-  return updated;
+    const updated: FcuProfile = {
+      ...existing,
+      config: { ...config },
+    };
+    catalog.profiles[index] = updated;
+    await writeDatabase(database, store);
+    return updated;
+  });
 }
 
 export function getMockSupportedFireModes(): FireModeName[] {

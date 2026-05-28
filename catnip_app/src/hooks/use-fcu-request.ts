@@ -60,23 +60,32 @@ export function useFcuRequest<T>(
   fetcherRef.current = fetcher;
 
   const runFetch = useCallback(async () => {
-    if (!client) {
+    if (!client || !peripheralId || client.id !== peripheralId) {
       return;
     }
 
+    const requestPeripheralId = peripheralId;
     setLoading(true);
     setError(null);
 
     try {
       const result = await fetcherRef.current(client);
+      if (client.id !== requestPeripheralId) {
+        return;
+      }
       setData(result);
     } catch (err: unknown) {
+      if (client.id !== requestPeripheralId) {
+        return;
+      }
       setData(null);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      if (client.id === requestPeripheralId) {
+        setLoading(false);
+      }
     }
-  }, [client]);
+  }, [client, peripheralId]);
 
   useEffect(() => {
     setData(null);
@@ -84,12 +93,22 @@ export function useFcuRequest<T>(
   }, [peripheralId]);
 
   useEffect(() => {
-    if (!fetchEnabled || !ready || !client) {
+    if (!fetchEnabled || !ready || !client || !peripheralId || client.id !== peripheralId) {
       return;
     }
-    void runFetch();
+
+    let cancelled = false;
+    void runFetch().finally(() => {
+      if (cancelled) {
+        return;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refetchDeps is intentional
-  }, [client, fetchEnabled, ready, runFetch, ...refetchDeps]);
+  }, [client, fetchEnabled, peripheralId, ready, runFetch, ...refetchDeps]);
 
   const isConnecting = connectionStatus === 'connecting';
   const hasData = data !== null;

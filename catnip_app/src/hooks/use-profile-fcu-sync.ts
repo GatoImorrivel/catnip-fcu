@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   formatUpdateFireModeConfigError,
@@ -43,9 +43,18 @@ export function useProfileFcuSync({
 }: UseProfileFcuSyncOptions): UseProfileFcuSyncResult {
   const { save, saving } = useFcuSaveFireModeAssignment(peripheralId);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [queueDepth, setQueueDepth] = useState(0);
+  const mountedRef = useRef(true);
   const queueRef = useRef<Promise<UpdateFireModeConfigError | null>>(
     Promise.resolve(null),
   );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const clearSyncError = useCallback(() => {
     setSyncError(null);
@@ -55,7 +64,12 @@ export function useProfileFcuSync({
     (
       task: () => Promise<UpdateFireModeConfigError | null>,
     ): Promise<UpdateFireModeConfigError | null> => {
-      const next = queueRef.current.then(task, task);
+      setQueueDepth((depth) => depth + 1);
+      const next = queueRef.current
+        .then(task, task)
+        .finally(() => {
+          setQueueDepth((depth) => Math.max(0, depth - 1));
+        });
       queueRef.current = next.catch(() => null);
       return next;
     },
@@ -80,17 +94,21 @@ export function useProfileFcuSync({
         throw new Error(message);
       }
 
-      setSyncError(null);
+      if (mountedRef.current) {
+        setSyncError(null);
+      }
       try {
         const configOverrides = profile.isDefault ? {} : profile.config;
         const result = await save(fcuPosition, profile.firemodeName, configOverrides);
-        if (result !== null) {
+        if (result !== null && mountedRef.current) {
           setSyncError(formatUpdateFireModeConfigError(result));
         }
         return result;
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        setSyncError(message);
+        if (mountedRef.current) {
+          setSyncError(message);
+        }
         throw err;
       }
     },
@@ -139,7 +157,11 @@ export function useProfileFcuSync({
   const pushAssignmentForPosition = useCallback(
     (fcuPosition: number, assignments: SelectorPositionProfileAssignment[]) => {
       if (!peripheralId || !compatibilityId) {
-        return Promise.resolve(null);
+        const message = 'FCU not connected';
+        if (mountedRef.current) {
+          setSyncError(message);
+        }
+        return Promise.reject(new Error(message));
       }
 
       return enqueue(async () => {
@@ -149,7 +171,11 @@ export function useProfileFcuSync({
           fcuPosition,
         );
         if (!profile) {
-          return null;
+          const message = 'No profile assigned for this selector position';
+          if (mountedRef.current) {
+            setSyncError(message);
+          }
+          throw new Error(message);
         }
 
         return applyProfileAtPosition(fcuPosition, profile.id);
@@ -159,7 +185,7 @@ export function useProfileFcuSync({
   );
 
   return {
-    syncing: saving,
+    syncing: saving || queueDepth > 0,
     syncError,
     clearSyncError,
     pushProfileAtPosition,

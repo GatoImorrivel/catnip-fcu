@@ -7,6 +7,8 @@ export {
   loadProfileDatabase,
   saveProfileDatabase,
 } from './persistence';
+export { ProfileStoreLoadError } from './errors';
+export { migrateCompatibilityId } from './migrate-compatibility-id';
 export {
   addProfile,
   getMockSupportedFireModes,

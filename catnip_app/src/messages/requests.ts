@@ -1,4 +1,5 @@
 import { PostcardWriter, uuidStringToBytes } from './codec';
+import { assertNonNegativeIntegerFcuPosition } from './position';
 import { HOST_TO_FCU_REQUEST_VARIANT } from './types';
 
 function writeRequestHeader(
@@ -30,6 +31,7 @@ export function encodeGetFireModeForPositionRequest(
   messageId: string,
   position: number,
 ): Uint8Array {
+  assertNonNegativeIntegerFcuPosition(position);
   const writer = new PostcardWriter();
   writeRequestHeader(writer, HOST_TO_FCU_REQUEST_VARIANT.GetFireModeForPosition, messageId);
   writer.writeU32(position);
@@ -58,6 +60,7 @@ export function encodeUpdateFireModeConfigRequest(
   firemodeName: string,
   config: Record<string, string>,
 ): Uint8Array {
+  assertNonNegativeIntegerFcuPosition(position);
   const writer = new PostcardWriter();
   writeRequestHeader(writer, HOST_TO_FCU_REQUEST_VARIANT.UpdateFireModeConfig, messageId);
   writer.writeU32(position);

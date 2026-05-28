@@ -1,2 +1,9 @@
-export const INVALID_FIELD_BORDER_COLOR = '#ff2d2d';
-export const INVALID_FIELD_BACKGROUND_COLOR = 'rgba(255, 45, 45, 0.12)';
+import type { Theme } from '@/theme/types';
+
+export function invalidFieldBorderColor(theme: Theme): string {
+  return theme.colors.error;
+}
+
+export function invalidFieldBackgroundColor(theme: Theme): string {
+  return theme.colors.background;
+}

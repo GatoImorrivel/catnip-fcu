@@ -1,3 +1,5 @@
+import type { EventSubscription } from 'react-native';
+
 import type { Characteristics, FCUToHostEvent } from '@/messages/types';
 
 import { CatnipBleClient } from './catnip-ble-client';
@@ -26,6 +28,36 @@ let replicaCreationPeripheralId: string | null = null;
 
 const sessions = new Map<string, FcuSession>();
 
+let disconnectSubscription: EventSubscription | null = null;
+
+function ensureDisconnectListener(): void {
+  if (disconnectSubscription) {
+    return;
+  }
+  disconnectSubscription = BleManager.onDisconnectPeripheral((event) => {
+    const session = sessions.get(event.peripheral);
+    if (!session) {
+      return;
+    }
+    void handleUnexpectedDisconnect(session);
+  });
+}
+
+async function handleUnexpectedDisconnect(session: FcuSession): Promise<void> {
+  session.generation += 1;
+  const client = session.client;
+  session.client = null;
+  session.status = 'error';
+  session.error = 'FCU disconnected';
+  session.connectPromise = null;
+  clearSessionCharacteristics(session);
+  emit(session);
+
+  if (client) {
+    await client.close();
+  }
+}
+
 function getOrCreateSession(peripheralId: string): FcuSession {
   let session = sessions.get(peripheralId);
   if (!session) {
@@ -44,6 +76,7 @@ function getOrCreateSession(peripheralId: string): FcuSession {
       generation: 0,
     };
     sessions.set(peripheralId, session);
+    ensureDisconnectListener();
   }
   return session;
 }
@@ -70,6 +103,7 @@ async function openConnection(session: FcuSession, generation: number): Promise<
     await ensureBleManagerStarted();
     await BleManager.connect(peripheralId);
     if (generation !== session.generation) {
+      await BleManager.disconnect(peripheralId).catch(() => undefined);
       return;
     }
 
@@ -94,6 +128,7 @@ async function openConnection(session: FcuSession, generation: number): Promise<
     session.status = 'error';
     session.client = null;
     session.error = err instanceof Error ? err.message : String(err);
+    await BleManager.disconnect(peripheralId).catch(() => undefined);
   } finally {
     if (generation === session.generation) {
       session.connectPromise = null;
@@ -212,6 +247,7 @@ export function getFcuSessionSnapshot(peripheralId: string): {
   status: FcuSessionStatus;
   client: CatnipBleClient | null;
   error: string | null;
+  characteristicsError: string | null;
   ready: boolean;
 } {
   const session = sessions.get(peripheralId);
@@ -220,6 +256,7 @@ export function getFcuSessionSnapshot(peripheralId: string): {
       status: 'idle',
       client: null,
       error: null,
+      characteristicsError: null,
       ready: false,
     };
   }
@@ -228,8 +265,13 @@ export function getFcuSessionSnapshot(peripheralId: string): {
     status: session.status,
     client: session.client,
     error: session.error,
+    characteristicsError: session.characteristicsError,
     ready: session.status === 'ready' && session.client !== null,
   };
+}
+
+export function getFcuSessionCharacteristicsError(peripheralId: string): string | null {
+  return sessions.get(peripheralId)?.characteristicsError ?? null;
 }
 
 export function waitForFcuSessionReady(
@@ -296,6 +338,10 @@ export async function ensureFcuSessionCharacteristics(
 ): Promise<Characteristics> {
   const session = getOrCreateSession(peripheralId);
 
+  if (session.refCount === 0) {
+    throw new Error('FCU session not acquired');
+  }
+
   if (session.characteristics) {
     return session.characteristics;
   }
@@ -303,6 +349,8 @@ export async function ensureFcuSessionCharacteristics(
   if (session.characteristicsPromise) {
     return session.characteristicsPromise;
   }
+
+  ensureConnected(session);
 
   session.characteristicsPromise = (async () => {
     try {

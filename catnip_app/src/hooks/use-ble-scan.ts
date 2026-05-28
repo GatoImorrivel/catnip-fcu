@@ -43,7 +43,8 @@ function mergePeripheral(
 
 export function useBleScan(options: UseBleScanOptions = {}): UseBleScanResult {
   const { filterCatnip = true, scanOptions } = options;
-  const { ready, isBluetoothOn, error: managerError } = useBleManager();
+  const { ready, isBluetoothOn, bluetoothUnavailableMessage, error: managerError } =
+    useBleManager();
   const [devicesById, setDevicesById] = useState<Map<string, Peripheral>>(
     () => new Map(),
   );
@@ -105,7 +106,7 @@ export function useBleScan(options: UseBleScanOptions = {}): UseBleScanResult {
         throw new Error('BLE manager is not ready');
       }
       if (!isBluetoothOn) {
-        throw new Error('Bluetooth is off');
+        throw new Error(bluetoothUnavailableMessage ?? 'Bluetooth is unavailable');
       }
 
       setError(null);
@@ -138,7 +139,7 @@ export function useBleScan(options: UseBleScanOptions = {}): UseBleScanResult {
         throw err;
       }
     },
-    [clearDevices, filterCatnip, isBluetoothOn, ready, scanOptions, stopScan],
+    [bluetoothUnavailableMessage, clearDevices, filterCatnip, isBluetoothOn, ready, scanOptions, stopScan],
   );
 
   return {

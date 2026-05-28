@@ -2,6 +2,7 @@ import type { KeyValueStore } from '@/replicas/persistence';
 import { defaultKeyValueStore } from '@/replicas/persistence';
 
 import { PROFILE_DB_VERSION, PROFILE_STORAGE_KEY } from './constants';
+import { ProfileStoreLoadError } from './errors';
 import type { FcuProfile, FcuProfileCatalog } from './types';
 
 export interface ProfileDatabase {
@@ -44,28 +45,35 @@ function parseDatabase(raw: string | null): ProfileDatabase {
     return emptyDatabase();
   }
 
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') {
-      return emptyDatabase();
-    }
-
-    const candidate = parsed as Partial<ProfileDatabase>;
-    if (candidate.version !== PROFILE_DB_VERSION || !candidate.catalogs) {
-      return emptyDatabase();
-    }
-
-    const catalogs: Record<string, FcuProfileCatalog> = {};
-    for (const [key, catalog] of Object.entries(candidate.catalogs)) {
-      if (isCatalog(catalog) && catalog.compatibilityId === key) {
-        catalogs[key] = catalog;
-      }
-    }
-
-    return { version: PROFILE_DB_VERSION, catalogs };
+    parsed = JSON.parse(raw);
   } catch {
-    return emptyDatabase();
+    throw new ProfileStoreLoadError('Profile database is not valid JSON');
   }
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new ProfileStoreLoadError('Profile database has invalid shape');
+  }
+
+  const candidate = parsed as Partial<ProfileDatabase>;
+  if (candidate.version !== PROFILE_DB_VERSION) {
+    throw new ProfileStoreLoadError(
+      `Unsupported profile database version (expected ${PROFILE_DB_VERSION})`,
+    );
+  }
+  if (!candidate.catalogs || typeof candidate.catalogs !== 'object') {
+    throw new ProfileStoreLoadError('Profile database is missing catalogs');
+  }
+
+  const catalogs: Record<string, FcuProfileCatalog> = {};
+  for (const [key, catalog] of Object.entries(candidate.catalogs)) {
+    if (isCatalog(catalog)) {
+      catalogs[key] = catalog;
+    }
+  }
+
+  return { version: PROFILE_DB_VERSION, catalogs };
 }
 
 export async function loadProfileDatabase(

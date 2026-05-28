@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useReducer } from 'react';
+import { useCallback, useEffect, useReducer, useState } from 'react';
 
 import { useCatnipFcu, type UseCatnipFcuOptions } from '@/hooks/use-catnip-fcu';
 import type { CatnipBleClient } from '@/lib/catnip-ble-client';
 import {
   ensureFcuSessionCharacteristics,
   getFcuSessionCharacteristics,
+  getFcuSessionCharacteristicsError,
   reconnectFcuSession,
   subscribeFcuSession,
 } from '@/lib/fcu-connection-session';
@@ -39,10 +40,12 @@ export function useCreateReplicaFcu(
     });
   }, [peripheralId]);
 
-  const { client, status, error, ready } = useCatnipFcu(peripheralId, {
+  const { client, status, error: connectionError, ready } = useCatnipFcu(peripheralId, {
     ...options,
     manageConnection: false,
   });
+
+  const [characteristicsError, setCharacteristicsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!peripheralId || !ready) {
@@ -50,25 +53,36 @@ export function useCreateReplicaFcu(
     }
 
     if (getFcuSessionCharacteristics(peripheralId)) {
+      setCharacteristicsError(null);
       return;
     }
 
-    void ensureFcuSessionCharacteristics(peripheralId).catch(() => undefined);
+    void ensureFcuSessionCharacteristics(peripheralId).catch((err: unknown) => {
+      setCharacteristicsError(
+        err instanceof Error ? err.message : 'Failed to read FCU characteristics',
+      );
+    });
   }, [peripheralId, ready]);
 
   const reconnect = useCallback(() => {
+    setCharacteristicsError(null);
     reconnectFcuSession(peripheralId);
-    void ensureFcuSessionCharacteristics(peripheralId).catch(() => undefined);
+    void ensureFcuSessionCharacteristics(peripheralId).catch((err: unknown) => {
+      setCharacteristicsError(
+        err instanceof Error ? err.message : 'Failed to read FCU characteristics',
+      );
+    });
   }, [peripheralId]);
 
   const characteristics = getFcuSessionCharacteristics(peripheralId);
+  const sessionCharacteristicsError = getFcuSessionCharacteristicsError(peripheralId);
 
   return {
     characteristics,
     client,
     ready,
     connectionStatus: status,
-    error,
+    error: connectionError ?? characteristicsError ?? sessionCharacteristicsError,
     reconnect,
   };
 }

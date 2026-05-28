@@ -11,6 +11,9 @@ import {
   UpdateFireModeConfigError,
 } from './types';
 
+/** Maximum collection length accepted when decoding FCU payloads. */
+export const MAX_POSTCARD_COLLECTION_LENGTH = 256;
+
 /** Matches `catnip_messages::codec::OUTBOUND_TAG_REPLY`. */
 export const OUTBOUND_TAG_REPLY = 1;
 /** Matches `catnip_messages::codec::OUTBOUND_TAG_EVENT`. */
@@ -89,6 +92,9 @@ export class PostcardReader {
 
   readVec<T>(readItem: () => T): T[] {
     const length = this.readVarintU32();
+    if (length > MAX_POSTCARD_COLLECTION_LENGTH) {
+      throw new PostcardDecodeError(`collection length ${length} exceeds maximum`);
+    }
     const items: T[] = [];
     for (let i = 0; i < length; i++) {
       items.push(readItem());
@@ -107,6 +113,14 @@ export class PostcardReader {
       return [key, value] as const;
     });
     return Object.fromEntries(entries);
+  }
+
+  readFireModeConfigTypeUnit(): FireModeConfigTypeUnit {
+    const unit = this.readU8();
+    if (unit > 4) {
+      throw new PostcardDecodeError(`invalid FireModeConfigTypeUnit ${unit}`);
+    }
+    return unit as FireModeConfigTypeUnit;
   }
 
   readFcuKind(): FCUKind {
@@ -135,7 +149,7 @@ export class PostcardReader {
       const min = this.readI32();
       const max = this.readI32();
       const defaultValue = this.readI32();
-      const unit = this.readU8() as FireModeConfigTypeUnit;
+      const unit = this.readFireModeConfigTypeUnit();
       return {
         tag: 'Numeric',
         display_name,
@@ -187,7 +201,7 @@ export class PostcardReader {
     }
     if (variant === 1) {
       const errVariant = this.readU8();
-      if (errVariant < 0 || errVariant > 1) {
+      if (errVariant > 1) {
         throw new PostcardDecodeError(`invalid UpdateFireModeConfigError ${errVariant}`);
       }
       return errVariant as UpdateFireModeConfigError;
@@ -333,7 +347,11 @@ export function uuidStringToBytes(uuid: string): Uint8Array {
   }
   const bytes = new Uint8Array(16);
   for (let i = 0; i < 16; i++) {
-    bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    const pair = hex.slice(i * 2, i * 2 + 2);
+    if (!/^[0-9a-fA-F]{2}$/.test(pair)) {
+      throw new Error('invalid UUID string');
+    }
+    bytes[i] = Number.parseInt(pair, 16);
   }
   return bytes;
 }

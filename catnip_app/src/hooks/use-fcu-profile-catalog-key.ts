@@ -14,7 +14,7 @@ export function useFcuProfileCatalogKey(
   peripheralId: string | null,
   storedCompatibilityId: string | null | undefined,
 ): string | null {
-  const [, bumpSession] = useReducer((version: number) => version + 1, 0);
+  const [sessionGeneration, bumpSession] = useReducer((version: number) => version + 1, 0);
 
   useEffect(() => {
     if (!peripheralId) {
@@ -38,7 +38,7 @@ export function useFcuProfileCatalogKey(
     } catch {
       return null;
     }
-  }, [peripheralId, storedCompatibilityId]);
+  }, [peripheralId, sessionGeneration, storedCompatibilityId]);
 
   return compatibilityId;
 }

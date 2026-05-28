@@ -221,13 +221,17 @@ function CreateReplicaFlow({
     }
 
     if (step === 'mapSelector') {
+      if (mappingSubphase === 'map') {
+        setMappingSubphase('pick');
+        return;
+      }
       setStep('weapon');
       return;
     }
 
     releaseReplicaCreationSession();
     router.back();
-  }, [router, step]);
+  }, [mappingSubphase, router, step]);
 
   const handleCreate = useCallback(async () => {
     if (!mac || !boundFcuName || !name.trim()) {
@@ -334,12 +338,12 @@ function CreateReplicaFlow({
             peripheralId={mac}
             mapping={selectorPositionMapping}
           />
-          {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
+          {error ? <Text style={[styles.error, { color: theme.colors.error }]}>{error}</Text> : null}
         </View>
       ) : step === 'mapSelector' ? (
         <View style={[styles.body, styles.bodyContentFlex]}>
           {fireSelectorMappingStep}
-          {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
+          {error ? <Text style={[styles.error, { color: theme.colors.error }]}>{error}</Text> : null}
         </View>
       ) : (
       <ScrollView
@@ -423,7 +427,7 @@ function CreateReplicaFlow({
           </>
         ) : null}
 
-        {error ? <Text style={[styles.error, { color: theme.colors.primary }]}>{error}</Text> : null}
+        {error ? <Text style={[styles.error, { color: theme.colors.error }]}>{error}</Text> : null}
       </ScrollView>
       )}
 

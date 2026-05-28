@@ -10,6 +10,9 @@ export interface ThemeColors {
   border: string;
   primary: string;
   primaryForeground: string;
+  error: string;
+  destructive: string;
+  destructiveForeground: string;
 }
 
 export interface Theme {
