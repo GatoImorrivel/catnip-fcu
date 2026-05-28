@@ -6,11 +6,11 @@ import {
 import type { SelectorPositionMappingEntry } from '@/replicas/selector-mapping';
 
 import type { SelectorPositionProfileAssignment } from './types';
-import { getDefaultProfileId, getOrCreateCatalog, setDefaultProfileConfig } from './mock-store';
+import { getDefaultProfileId, getOrCreateCatalog, setDefaultProfileConfig } from './store';
 
 /**
  * Reads fire mode + config from the FCU for each mapped hardware position, updates
- * the in-memory default profiles for that compatibility family, and returns position assignments.
+ * the default profiles for that compatibility family, and returns position assignments.
  */
 export async function loadDefaultProfilesFromFcu(
   peripheralId: string,
@@ -21,7 +21,7 @@ export async function loadDefaultProfilesFromFcu(
     return [];
   }
 
-  getOrCreateCatalog(compatibilityId);
+  await getOrCreateCatalog(compatibilityId);
   acquireFcuSession(peripheralId);
 
   try {
@@ -30,7 +30,11 @@ export async function loadDefaultProfilesFromFcu(
 
     for (const entry of mapping) {
       const positionConfig = await client.getFireModeForPosition(entry.fcuPosition);
-      setDefaultProfileConfig(compatibilityId, positionConfig.firemode_name, positionConfig.config);
+      await setDefaultProfileConfig(
+        compatibilityId,
+        positionConfig.firemode_name,
+        positionConfig.config,
+      );
       assignments.push({
         fcuPosition: entry.fcuPosition,
         profileId: getDefaultProfileId(compatibilityId, positionConfig.firemode_name),

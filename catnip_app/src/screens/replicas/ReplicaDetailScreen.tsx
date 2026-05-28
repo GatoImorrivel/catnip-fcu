@@ -6,8 +6,8 @@ import { BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ConfirmModal, ProfileAssignmentRow } from '@/components/fcu-profiles';
 import { LiveFireSelectorPanel } from '@/components/fire-selector/LiveFireSelectorPanel';
 import {
+  getDefaultProfileId,
   getProfileDisplayName,
-  listProfiles,
   parseSelectorPositionProfiles,
   profileIdForPosition,
   upsertPositionProfileAssignment,
@@ -346,32 +346,27 @@ export function ReplicaDetailScreen() {
     clearSyncError();
 
     try {
-      fcuProfiles.deleteCustomProfile(deleteTargetProfileId);
-      const fallback =
-        listProfiles(compatibilityId).find((entry) => entry.isDefault) ??
-        listProfiles(compatibilityId)[0];
-
-      const withoutDeleted = positionAssignmentsRef.current.filter(
-        (entry) => entry.profileId !== deleteTargetProfileId,
+      const defaultProfileIdForFiremode = getDefaultProfileId(
+        compatibilityId,
+        profile.firemodeName,
       );
-      const next =
-        fallback !== undefined
-          ? upsertPositionProfileAssignment(
-              withoutDeleted,
-              activeFcuPosition,
-              fallback.id,
-            )
-          : withoutDeleted;
+      await fcuProfiles.deleteCustomProfile(deleteTargetProfileId);
 
+      const refreshed = await get(replicaId);
+      const next = refreshed ? parseSelectorPositionProfiles(refreshed) : [];
       setPositionAssignments(next);
-      await persistAssignments(next);
-
-      if (fallback !== undefined) {
-        await pushProfileAtPosition(activeFcuPosition, fallback.id);
-      }
 
       setDeleteConfirmOpen(false);
       setDeleteTargetProfileId(null);
+
+      if (
+        profileIdForPosition(next, activeFcuPosition) === defaultProfileIdForFiremode ||
+        next.some((entry) => entry.fcuPosition === activeFcuPosition)
+      ) {
+        void pushProfileAtPosition(activeFcuPosition, defaultProfileIdForFiremode).catch(
+          () => undefined,
+        );
+      }
     } catch (err: unknown) {
       setDeleteProfileError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -383,8 +378,9 @@ export function ReplicaDetailScreen() {
     compatibilityId,
     deleteTargetProfileId,
     fcuProfiles,
-    persistAssignments,
+    get,
     pushProfileAtPosition,
+    replicaId,
   ]);
 
   return (

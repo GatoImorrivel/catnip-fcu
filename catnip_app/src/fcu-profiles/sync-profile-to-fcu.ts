@@ -2,12 +2,12 @@ import type { CatnipBleClient } from '@/lib/catnip-ble-client';
 import { buildWireConfigForFcu } from '@/lib/firemode-config-utils';
 import {
   UpdateFireModeConfigError,
+  type FireModeName,
   type UpdateFireModeConfigError as UpdateFireModeConfigErrorType,
 } from '@/messages/types';
 
 import { profileIdForPosition } from './assignments';
-import { getProfile, listProfiles } from './mock-store';
-import type { FireModeName } from '@/messages/types';
+import { getProfile, listProfiles } from './store';
 
 import type {
   FcuProfile,
@@ -28,21 +28,20 @@ export function formatUpdateFireModeConfigError(
   }
 }
 
-export function resolveProfileForPosition(
+export async function resolveProfileForPosition(
   compatibilityId: string,
   assignments: SelectorPositionProfileAssignment[],
   fcuPosition: number,
-): FcuProfile | null {
+): Promise<FcuProfile | null> {
+  const profiles = await listProfiles(compatibilityId);
   const profileId =
-    profileIdForPosition(assignments, fcuPosition) ??
-    listProfiles(compatibilityId)[0]?.id ??
-    null;
+    profileIdForPosition(assignments, fcuPosition) ?? profiles[0]?.id ?? null;
 
   if (!profileId) {
     return null;
   }
 
-  return getProfile(compatibilityId, profileId) ?? null;
+  return (await getProfile(compatibilityId, profileId)) ?? null;
 }
 
 export async function syncFireModeConfigToFcu(
@@ -69,9 +68,9 @@ export async function syncProfileToFcu(
   );
 }
 
-export function resolveProfileById(
+export async function resolveProfileById(
   compatibilityId: string,
   profileId: FcuProfileId,
-): FcuProfile | null {
-  return getProfile(compatibilityId, profileId) ?? null;
+): Promise<FcuProfile | null> {
+  return (await getProfile(compatibilityId, profileId)) ?? null;
 }

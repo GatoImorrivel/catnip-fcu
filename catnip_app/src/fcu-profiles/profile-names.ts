@@ -1,5 +1,4 @@
 import type { FcuProfile, FcuProfileId } from './types';
-import { listProfiles } from './mock-store';
 
 export function getProfileDisplayName(profile: FcuProfile): string {
   return profile.name;
@@ -20,8 +19,8 @@ export function validateProfileName(name: string): string | null {
   return null;
 }
 
-export function isProfileNameTaken(
-  compatibilityId: string,
+export function isProfileNameTakenInProfiles(
+  profiles: FcuProfile[],
   name: string,
   excludeProfileId?: FcuProfileId,
 ): boolean {
@@ -30,15 +29,15 @@ export function isProfileNameTaken(
     return false;
   }
 
-  return listProfiles(compatibilityId).some(
+  return profiles.some(
     (profile) =>
       profile.id !== excludeProfileId &&
       normalizeProfileName(getProfileDisplayName(profile)) === normalized,
   );
 }
 
-export function assertUniqueProfileName(
-  compatibilityId: string,
+export function assertUniqueProfileNameInProfiles(
+  profiles: FcuProfile[],
   name: string,
   excludeProfileId?: FcuProfileId,
 ): void {
@@ -47,7 +46,29 @@ export function assertUniqueProfileName(
     throw new Error(formatError);
   }
 
-  if (isProfileNameTaken(compatibilityId, name, excludeProfileId)) {
+  if (isProfileNameTakenInProfiles(profiles, name, excludeProfileId)) {
     throw new Error('A profile with this name already exists');
   }
+}
+
+/** @deprecated Use {@link isProfileNameTakenInProfiles} with a loaded profile list. */
+export async function isProfileNameTaken(
+  compatibilityId: string,
+  name: string,
+  excludeProfileId?: FcuProfileId,
+): Promise<boolean> {
+  const { listProfiles } = await import('./store');
+  const profiles = await listProfiles(compatibilityId);
+  return isProfileNameTakenInProfiles(profiles, name, excludeProfileId);
+}
+
+/** @deprecated Use {@link assertUniqueProfileNameInProfiles} with a loaded profile list. */
+export async function assertUniqueProfileName(
+  compatibilityId: string,
+  name: string,
+  excludeProfileId?: FcuProfileId,
+): Promise<void> {
+  const { listProfiles } = await import('./store');
+  const profiles = await listProfiles(compatibilityId);
+  assertUniqueProfileNameInProfiles(profiles, name, excludeProfileId);
 }

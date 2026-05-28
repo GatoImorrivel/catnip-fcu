@@ -12,7 +12,7 @@ import {
 
 import { FireModeConfigSchemaForm, defaultWireValuesFromSchema } from '@/components/firemode';
 import {
-  assertUniqueProfileName,
+  assertUniqueProfileNameInProfiles,
   parseSelectorPositionProfiles,
   upsertPositionProfileAssignment,
 } from '@/fcu-profiles';
@@ -155,8 +155,12 @@ export function NewProfileConfigScreen() {
 
     setCreating(true);
     try {
-      assertUniqueProfileName(compatibilityId, profileName);
-      const created = fcuProfiles.createCustomProfile(profileName, firemodeName, configValues);
+      assertUniqueProfileNameInProfiles(fcuProfiles.profiles, profileName);
+      const created = await fcuProfiles.createCustomProfile(
+        profileName,
+        firemodeName,
+        configValues,
+      );
 
       const replica = await get(replicaId);
       const existing = replica ? parseSelectorPositionProfiles(replica) : [];

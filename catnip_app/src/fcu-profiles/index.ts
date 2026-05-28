@@ -3,17 +3,22 @@ export {
   MOCK_SUPPORTED_FIRE_MODES,
 } from './mock-firemode-schemas';
 export {
+  clearProfileDatabaseForTests,
+  loadProfileDatabase,
+  saveProfileDatabase,
+} from './persistence';
+export {
   addProfile,
   getMockSupportedFireModes,
   getDefaultProfileId,
   getOrCreateCatalog,
   getProfile,
+  invalidateProfileStoreCache,
   listProfiles,
-  migrateCatalogFromPeripheralId,
   removeProfile,
   setDefaultProfileConfig,
   updateProfile,
-} from './mock-store';
+} from './store';
 export { loadDefaultProfilesFromFcu } from './sync-default-profiles-from-fcu';
 export {
   formatUpdateFireModeConfigError,
@@ -29,8 +34,10 @@ export {
 } from './assignments';
 export {
   assertUniqueProfileName,
+  assertUniqueProfileNameInProfiles,
   getProfileDisplayName,
   isProfileNameTaken,
+  isProfileNameTakenInProfiles,
   normalizeProfileName,
   validateProfileName,
 } from './profile-names';

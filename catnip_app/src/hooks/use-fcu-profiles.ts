@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
   addProfile,
@@ -16,54 +16,73 @@ import type { FireModeName } from '@/messages/types';
 
 export type UseFcuProfilesResult = {
   profiles: FcuProfile[];
+  loading: boolean;
+  error: string | null;
   supportedFireModes: FireModeName[];
   version: number;
+  refresh: () => Promise<void>;
   getProfileById: (profileId: FcuProfileId) => FcuProfile | undefined;
   createCustomProfile: (
     name: string,
     firemodeName: FireModeName,
     config: Record<string, string>,
-  ) => FcuProfile;
+  ) => Promise<FcuProfile>;
   updateCustomProfile: (
     profileId: FcuProfileId,
     config: Record<string, string>,
-  ) => FcuProfile;
-  deleteCustomProfile: (profileId: FcuProfileId) => void;
+  ) => Promise<FcuProfile>;
+  deleteCustomProfile: (profileId: FcuProfileId) => Promise<void>;
   getSchemaForFireMode: (firemodeName: FireModeName) => ReturnType<typeof getMockFireModeSchema>;
   defaultConfigForFireMode: (firemodeName: FireModeName) => Record<string, string>;
 };
 
 export function useFcuProfiles(compatibilityId: string | null): UseFcuProfilesResult {
+  const [profiles, setProfiles] = useState<FcuProfile[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
+
+  const refresh = useCallback(async () => {
+    if (!compatibilityId) {
+      setProfiles([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      setProfiles(await listProfiles(compatibilityId));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+      setProfiles([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [compatibilityId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh, version]);
 
   const bump = useCallback(() => {
     setVersion((value) => value + 1);
   }, []);
 
-  const profiles = useMemo(() => {
-    if (!compatibilityId) {
-      return [];
-    }
-    void version;
-    return listProfiles(compatibilityId);
-  }, [compatibilityId, version]);
-
   const getProfileById = useCallback(
     (profileId: FcuProfileId) => {
-      if (!compatibilityId) {
-        return undefined;
-      }
-      return getProfile(compatibilityId, profileId);
+      return profiles.find((profile) => profile.id === profileId);
     },
-    [compatibilityId, version],
+    [profiles],
   );
 
   const createCustomProfile = useCallback(
-    (name: string, firemodeName: FireModeName, config: Record<string, string>) => {
+    async (name: string, firemodeName: FireModeName, config: Record<string, string>) => {
       if (!compatibilityId) {
         throw new Error('FCU compatibility id not available');
       }
-      const created = addProfile(compatibilityId, {
+      const created = await addProfile(compatibilityId, {
         name,
         firemodeName,
         config,
@@ -76,11 +95,11 @@ export function useFcuProfiles(compatibilityId: string | null): UseFcuProfilesRe
   );
 
   const updateCustomProfile = useCallback(
-    (profileId: FcuProfileId, config: Record<string, string>) => {
+    async (profileId: FcuProfileId, config: Record<string, string>) => {
       if (!compatibilityId) {
         throw new Error('FCU compatibility id not available');
       }
-      const updated = updateProfile(compatibilityId, profileId, config);
+      const updated = await updateProfile(compatibilityId, profileId, config);
       bump();
       return updated;
     },
@@ -88,11 +107,11 @@ export function useFcuProfiles(compatibilityId: string | null): UseFcuProfilesRe
   );
 
   const deleteCustomProfile = useCallback(
-    (profileId: FcuProfileId) => {
+    async (profileId: FcuProfileId) => {
       if (!compatibilityId) {
         throw new Error('FCU compatibility id not available');
       }
-      removeProfile(compatibilityId, profileId);
+      await removeProfile(compatibilityId, profileId);
       bump();
     },
     [bump, compatibilityId],
@@ -108,8 +127,11 @@ export function useFcuProfiles(compatibilityId: string | null): UseFcuProfilesRe
 
   return {
     profiles,
+    loading,
+    error,
     supportedFireModes: getMockSupportedFireModes(),
     version,
+    refresh,
     getProfileById,
     createCustomProfile,
     updateCustomProfile,

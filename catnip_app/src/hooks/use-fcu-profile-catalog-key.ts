@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useReducer } from 'react';
 
-import { migrateCatalogFromPeripheralId } from '@/fcu-profiles';
 import {
   getFcuSessionCharacteristics,
   subscribeFcuSession,
@@ -40,12 +39,6 @@ export function useFcuProfileCatalogKey(
       return null;
     }
   }, [peripheralId, storedCompatibilityId]);
-
-  useEffect(() => {
-    if (peripheralId && compatibilityId) {
-      migrateCatalogFromPeripheralId(peripheralId, compatibilityId);
-    }
-  }, [compatibilityId, peripheralId]);
 
   return compatibilityId;
 }

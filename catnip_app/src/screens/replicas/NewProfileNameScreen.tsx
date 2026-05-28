@@ -11,8 +11,8 @@ import {
 } from 'react-native';
 
 import {
-  assertUniqueProfileName,
-  isProfileNameTaken,
+  assertUniqueProfileNameInProfiles,
+  isProfileNameTakenInProfiles,
   parseSelectorPositionProfiles,
   upsertPositionProfileAssignment,
   validateProfileName,
@@ -122,20 +122,20 @@ export function NewProfileNameScreen() {
       if (formatError) {
         return formatError;
       }
-      if (compatibilityId && isProfileNameTaken(compatibilityId, name)) {
+      if (isProfileNameTakenInProfiles(fcuProfiles.profiles, name)) {
         return 'A profile with this name already exists';
       }
       return null;
     },
-    [compatibilityId],
+    [fcuProfiles.profiles],
   );
 
   const nameTaken = useMemo(() => {
-    if (!compatibilityId || !profileName.trim()) {
+    if (!profileName.trim()) {
       return false;
     }
-    return isProfileNameTaken(compatibilityId, profileName);
-  }, [compatibilityId, profileName]);
+    return isProfileNameTakenInProfiles(fcuProfiles.profiles, profileName);
+  }, [fcuProfiles.profiles, profileName]);
 
   const handleCreate = useCallback(async () => {
     const trimmedName = profileName.trim();
@@ -149,13 +149,17 @@ export function NewProfileNameScreen() {
     setLoadError(null);
 
     try {
-      assertUniqueProfileName(compatibilityId, trimmedName);
+      assertUniqueProfileNameInProfiles(fcuProfiles.profiles, trimmedName);
       if (!fireModeSchema) {
         setLoadError('Fire mode schema not loaded from FCU yet');
         return;
       }
       const defaultConfig = defaultWireValuesFromSchema(fireModeSchema);
-      const created = fcuProfiles.createCustomProfile(trimmedName, firemodeName, defaultConfig);
+      const created = await fcuProfiles.createCustomProfile(
+        trimmedName,
+        firemodeName,
+        defaultConfig,
+      );
 
       const replica = await get(replicaId);
       const existing = replica ? parseSelectorPositionProfiles(replica) : [];

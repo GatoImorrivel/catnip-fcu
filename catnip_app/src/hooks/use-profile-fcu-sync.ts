@@ -62,6 +62,40 @@ export function useProfileFcuSync({
     [],
   );
 
+  const applyProfileAtPosition = useCallback(
+    async (
+      fcuPosition: number,
+      profileId: FcuProfileId,
+    ): Promise<UpdateFireModeConfigError | null> => {
+      if (!compatibilityId) {
+        const message = 'FCU compatibility id not available';
+        setSyncError(message);
+        throw new Error(message);
+      }
+
+      const profile = await resolveProfileById(compatibilityId, profileId);
+      if (!profile) {
+        const message = 'Profile not found';
+        setSyncError(message);
+        throw new Error(message);
+      }
+
+      setSyncError(null);
+      try {
+        const result = await save(fcuPosition, profile.firemodeName, profile.config);
+        if (result !== null) {
+          setSyncError(formatUpdateFireModeConfigError(result));
+        }
+        return result;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setSyncError(message);
+        throw err;
+      }
+    },
+    [compatibilityId, save],
+  );
+
   const pushProfileAtPosition = useCallback(
     (fcuPosition: number, profileId: FcuProfileId) => {
       if (!peripheralId) {
@@ -70,35 +104,9 @@ export function useProfileFcuSync({
         return Promise.reject(new Error(message));
       }
 
-      if (!compatibilityId) {
-        const message = 'FCU compatibility id not available';
-        setSyncError(message);
-        return Promise.reject(new Error(message));
-      }
-
-      const profile = resolveProfileById(compatibilityId, profileId);
-      if (!profile) {
-        const message = 'Profile not found';
-        setSyncError(message);
-        return Promise.reject(new Error(message));
-      }
-
-      return enqueue(async () => {
-        setSyncError(null);
-        try {
-          const result = await save(fcuPosition, profile.firemodeName, profile.config);
-          if (result !== null) {
-            setSyncError(formatUpdateFireModeConfigError(result));
-          }
-          return result;
-        } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : String(err);
-          setSyncError(message);
-          throw err;
-        }
-      });
+      return enqueue(() => applyProfileAtPosition(fcuPosition, profileId));
     },
-    [compatibilityId, enqueue, peripheralId, save],
+    [applyProfileAtPosition, enqueue, peripheralId],
   );
 
   const pushConfigAtPosition = useCallback(
@@ -133,14 +141,20 @@ export function useProfileFcuSync({
         return Promise.resolve(null);
       }
 
-      const profile = resolveProfileForPosition(compatibilityId, assignments, fcuPosition);
-      if (!profile) {
-        return Promise.resolve(null);
-      }
+      return enqueue(async () => {
+        const profile = await resolveProfileForPosition(
+          compatibilityId,
+          assignments,
+          fcuPosition,
+        );
+        if (!profile) {
+          return null;
+        }
 
-      return pushProfileAtPosition(fcuPosition, profile.id);
+        return applyProfileAtPosition(fcuPosition, profile.id);
+      });
     },
-    [compatibilityId, peripheralId, pushProfileAtPosition],
+    [applyProfileAtPosition, compatibilityId, enqueue, peripheralId],
   );
 
   return {
