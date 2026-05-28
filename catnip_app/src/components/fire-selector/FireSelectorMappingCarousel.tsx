@@ -135,8 +135,6 @@ export function FireSelectorMappingCarousel({
     [onAssign],
   );
 
-  const activeSlot = slots[activeIndex];
-
   if (slots.length === 0) {
     return null;
   }
@@ -162,11 +160,6 @@ export function FireSelectorMappingCarousel({
           <Text style={[styles.pageIndicator, { color: theme.colors.foreground }]}>
             {activeIndex + 1} of {slots.length}
           </Text>
-          {activeSlot ? (
-            <Text style={[styles.slotLabel, { color: theme.colors.muted }]}>
-              {activeSlot.label}
-            </Text>
-          ) : null}
           <View style={styles.dots}>
             {slots.map((slot, index) => {
               const mapped = getMappingEntryForSlot(mapping, slot.id) !== undefined;
@@ -281,9 +274,6 @@ const styles = StyleSheet.create({
   pageIndicator: {
     fontSize: 15,
     fontWeight: '600',
-  },
-  slotLabel: {
-    fontSize: 14,
   },
   dots: {
     flexDirection: 'row',

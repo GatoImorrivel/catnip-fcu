@@ -5,3 +5,4 @@ export { FireSelectorGraphic } from './FireSelectorGraphic';
 export { FireSelectorMappingCard } from './FireSelectorMappingCard';
 export { FireSelectorMappingCarousel } from './FireSelectorMappingCarousel';
 export { FireSelectorSlotPicker } from './FireSelectorSlotPicker';
+export { FireSelectorUnmappedGraphic } from './FireSelectorUnmappedGraphic';

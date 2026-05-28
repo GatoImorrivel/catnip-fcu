@@ -66,6 +66,18 @@ export function upsertMappingEntry(
   return [...without, entry];
 }
 
+/** Assigns the live FCU position to a UI slot, removing any other slot that had claimed it. */
+export function assignFcuPositionToSlot(
+  mapping: SelectorPositionMappingEntry[],
+  uiSlotId: FireSelectorSlotId,
+  fcuPosition: number,
+): SelectorPositionMappingEntry[] {
+  const withoutOtherClaimants = mapping.filter(
+    (item) => item.fcuPosition !== fcuPosition || item.uiSlotId === uiSlotId,
+  );
+  return upsertMappingEntry(withoutOtherClaimants, { uiSlotId, fcuPosition });
+}
+
 export function lookupUiSlotForFcuPosition(
   mapping: SelectorPositionMappingEntry[],
   fcuPosition: number,

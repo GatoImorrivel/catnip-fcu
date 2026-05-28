@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 
-import type { FCUToHostEvent } from '@/messages/types';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -42,22 +41,18 @@ type FireSelectorMappingStepProps = {
   onFcuNumPositionsChange?: (count: number) => void;
   /** When set (create-replica flow), skips connect/characteristics fetch — uses the Pair FCU session. */
   fcu?: CreateReplicaFcuBinding;
-  /** Live hardware position (create flow — events handled by {@link useCreateReplicaFcu}). */
-  liveFcuPosition?: number | null;
 };
 
-function buildSelectionHint(
-  replicaType: ReplicaType,
-  metadata: WeaponMetadataValues,
-  fcuNumPositions: number,
-  requiredCount: number,
-): string {
-  const pickRequired = needsGunSlotSelection(replicaType, metadata, fcuNumPositions);
-  if (!pickRequired) {
-    return `Map each switch position to a hardware reading on your FCU (${fcuNumPositions} supported).`;
+function buildPickPhaseHint(requiredCount: number): string {
+  return `Tap the fire-selector orientations you use on this replica. You will map ${requiredCount} of them on the next step.`;
+}
+
+function buildMapPhaseHint(slotCount: number, hadPickStep: boolean): string {
+  if (hadPickStep) {
+    return `For each graphic below, move your fire selector to match it, then Assign. Complete all ${slotCount} you chose.`;
   }
 
-  return `Your FCU supports ${fcuNumPositions} hardware position${fcuNumPositions === 1 ? '' : 's'}. Select ${requiredCount} switch position${requiredCount === 1 ? '' : 's'} on your replica, then map each one.`;
+  return 'For each graphic below, move your fire selector to match it, then Assign until all are mapped.';
 }
 
 export function canContinueFireSelectorMappingStep(
@@ -93,23 +88,11 @@ export function FireSelectorMappingStep({
   onMappingChange,
   onFcuNumPositionsChange,
   fcu: fcuBinding,
-  liveFcuPosition: liveFcuPositionProp = null,
 }: FireSelectorMappingStepProps) {
   const { theme } = useTheme();
-  const [liveFcuPositionLocal, setLiveFcuPositionLocal] = useState<number | null>(null);
   const fillPickLayout = layout === 'fill';
 
-  const onFcuEvent = useCallback((event: FCUToHostEvent) => {
-    if (event.tag === 'SelectorPositionChange') {
-      setLiveFcuPositionLocal(event.position);
-    }
-  }, []);
-
-  const fetchedFcu = useFcuCharacteristics(fcuBinding ? null : peripheralId, {
-    onEvent: onFcuEvent,
-  });
-
-  const liveFcuPosition = fcuBinding ? liveFcuPositionProp : liveFcuPositionLocal;
+  const fetchedFcu = useFcuCharacteristics(fcuBinding ? null : peripheralId);
 
   const characteristics = fcuBinding?.characteristics ?? fetchedFcu.characteristics;
   const charsLoading = fcuBinding ? false : fetchedFcu.loading;
@@ -148,10 +131,6 @@ export function FireSelectorMappingStep({
       onSubphaseChange('map');
     }
   }, [fcuNumPositions, onSubphaseChange, slotPickRequired]);
-
-  const mappingComplete =
-    fcuNumPositions > 0 &&
-    isMappingComplete(replicaType, metadata, fcuNumPositions, mapping);
 
   const slotsToMap = useMemo(
     () =>
@@ -224,18 +203,11 @@ export function FireSelectorMappingStep({
 
   return (
     <View style={fillPickLayout && showPickPhase ? styles.rootFill : undefined}>
-      <Text style={[styles.hint, { color: theme.colors.muted }]}>
-        {buildSelectionHint(replicaType, metadata, fcuNumPositions, requiredCount)}
-      </Text>
-
-      {liveFcuPosition !== null && showMapPhase ? (
-        <Text style={[styles.livePosition, { color: theme.colors.foreground }]}>
-          Current FCU reading: {liveFcuPosition}
-        </Text>
-      ) : null}
-
       {showPickPhase ? (
         <View style={fillPickLayout ? styles.pickPhaseFill : undefined}>
+          <Text style={[styles.hint, { color: theme.colors.muted }]}>
+            {buildPickPhaseHint(requiredCount)}
+          </Text>
           <Text style={[styles.phaseTitle, { color: theme.colors.foreground }]}>
             Choose switch positions ({selectedGunSlotIds.length}/{requiredCount})
           </Text>
@@ -253,13 +225,9 @@ export function FireSelectorMappingStep({
 
       {showMapPhase ? (
         <>
-          {slotPickRequired ? (
-            <Pressable onPress={() => onSubphaseChange('pick')} style={styles.backToPick}>
-              <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>
-                Change selected positions
-              </Text>
-            </Pressable>
-          ) : null}
+          <Text style={[styles.hint, { color: theme.colors.muted }]}>
+            {buildMapPhaseHint(slotsToMap.length, slotPickRequired)}
+          </Text>
 
           <Text style={[styles.phaseTitle, { color: theme.colors.foreground }]}>
             Map positions
@@ -275,12 +243,6 @@ export function FireSelectorMappingStep({
             disabled={assigning}
             onAssign={assign}
           />
-
-          {mappingComplete ? (
-            <Text style={[styles.completeHint, { color: theme.colors.muted }]}>
-              All positions mapped. Press Continue below.
-            </Text>
-          ) : null}
         </>
       ) : null}
     </View>
@@ -336,24 +298,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 12,
   },
-  livePosition: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
   phaseTitle: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
-    marginTop: 8,
-  },
-  backToPick: {
-    marginBottom: 8,
-    paddingVertical: 4,
-  },
-  completeHint: {
-    fontSize: 14,
-    textAlign: 'center',
     marginTop: 4,
   },
   error: {

@@ -22,7 +22,8 @@ export function FireSelectorVerifyStep({
         peripheralId={peripheralId}
         mapping={mapping}
         layout="fill"
-        hint="Move your fire selector through each position and confirm the graphic matches your replica."
+        hint="Move your fire selector and confirm the graphic matches each orientation on your replica."
+        captionMode="none"
       />
     </View>
   );

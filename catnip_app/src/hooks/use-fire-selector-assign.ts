@@ -3,10 +3,9 @@ import { useCallback, useState } from 'react';
 import type { CatnipBleClient } from '@/lib/catnip-ble-client';
 import type { FireSelectorSlotId } from '@/replicas/fire-selector-layout';
 import {
+  assignFcuPositionToSlot,
   getMappingEntryForSlot,
-  hasDuplicateFcuPositions,
   type SelectorPositionMappingEntry,
-  upsertMappingEntry,
 } from '@/replicas/selector-mapping';
 
 export type UseFireSelectorAssignResult = {
@@ -45,14 +44,7 @@ export function useFireSelectorAssign(
 
       try {
         const fcuPosition = await client.getCurrentFireSelectorPosition();
-
-        const next = upsertMappingEntry(mapping, { uiSlotId, fcuPosition });
-        if (hasDuplicateFcuPositions(next)) {
-          const message = `Hardware position ${fcuPosition} is already assigned to another switch position`;
-          setError(message);
-          return message;
-        }
-
+        const next = assignFcuPositionToSlot(mapping, uiSlotId, fcuPosition);
         onMappingChange(next);
         return null;
       } catch (err: unknown) {

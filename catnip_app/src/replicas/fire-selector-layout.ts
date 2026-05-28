@@ -23,8 +23,8 @@ const M4_SLOTS: FireSelectorSlot[] = [
 
 const AK_SLOTS: FireSelectorSlot[] = [
   { id: 'pos1', label: 'Position 1', rotationDeg: 0 },
-  { id: 'pos2', label: 'Position 2', rotationDeg: 10 },
-  { id: 'pos3', label: 'Position 3', rotationDeg: 16 },
+  { id: 'pos2', label: 'Position 2', rotationDeg: 12 },
+  { id: 'pos3', label: 'Position 3', rotationDeg: 21 },
 ];
 
 const LAYOUTS: Record<ReplicaType, FireSelectorLayout> = {

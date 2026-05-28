@@ -47,18 +47,12 @@ export function FireSelectorMappingCard({
         />
       </View>
 
-      <Text style={[styles.label, { color: theme.colors.foreground }]}>
-        Set selector to {slot.label}
-      </Text>
-
       <Text style={[styles.hint, { color: theme.colors.muted }]}>
-        Move your fire selector to match the graphic, then press Assign.
+        Move your fire selector to match the graphic, then Assign.
       </Text>
 
       {assigned ? (
-        <Text style={[styles.assigned, { color: theme.colors.primary }]}>
-          Assigned — FCU position {mappingEntry.fcuPosition}
-        </Text>
+        <Text style={[styles.assigned, { color: theme.colors.primary }]}>Assigned</Text>
       ) : null}
 
       {error ? (
@@ -101,16 +95,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
   },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 12,
-    textAlign: 'center',
-  },
   hint: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 6,
+    fontSize: 15,
+    lineHeight: 21,
+    marginTop: 12,
     textAlign: 'center',
   },
   assigned: {

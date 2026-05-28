@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AnimatedFireSelectorGraphic } from '@/components/fire-selector/AnimatedFireSelectorGraphic';
+import { FireSelectorUnmappedGraphic } from '@/components/fire-selector/FireSelectorUnmappedGraphic';
 import { useLiveSelectorRotation } from '@/hooks/use-live-selector-rotation';
 import { useTheme } from '@/hooks/use-theme';
 import { getFireSelectorAspect } from '@/replicas/fire-selector-replica-config';
@@ -28,7 +29,7 @@ type LiveFireSelectorPanelProps = {
   /** Max height (px) for the swept selector bounding box; used with `maxGraphicWidth`. */
   maxGraphicHeight?: number;
   hint?: string;
-  captionMode?: 'slot' | 'fireMode';
+  captionMode?: 'slot' | 'fireMode' | 'none';
   /** When false, skips BLE fire-mode reads (profile UI supplies the caption). */
   fetchFireModeLabel?: boolean;
   /** Compact sizes to content; fill gives graphic area flex so a parent can measure it. */
@@ -138,7 +139,7 @@ export function LiveFireSelectorPanel({
     );
   }
 
-  const showSlotCaption = captionMode === 'slot' && slotLabel;
+  const showSlotCaption = captionMode === 'slot' && slotLabel && !isUnmapped;
   const showFireModeCaption =
     captionMode === 'fireMode' && !isUnmapped && !renderBelowGraphic && fetchFireModeLabel;
   const belowGraphic =
@@ -167,7 +168,9 @@ export function LiveFireSelectorPanel({
             : undefined
         }
       >
-        {size > 0 ? (
+        {isUnmapped ? (
+          <FireSelectorUnmappedGraphic size={size > 0 ? size : undefined} />
+        ) : size > 0 ? (
           <AnimatedFireSelectorGraphic
             replicaType={replicaType}
             rotationDeg={rotationDeg}
@@ -197,12 +200,6 @@ export function LiveFireSelectorPanel({
 
       {belowGraphic ? (
         <View style={styles.belowGraphic}>{belowGraphic}</View>
-      ) : null}
-
-      {isUnmapped ? (
-        <Text style={[styles.unmapped, { color: theme.colors.muted }]}>
-          Unmapped hardware position
-        </Text>
       ) : null}
     </View>
   );
@@ -272,10 +269,6 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     zIndex: 20,
-  },
-  unmapped: {
-    fontSize: 14,
-    marginBottom: 4,
   },
   statusText: {
     fontSize: 14,

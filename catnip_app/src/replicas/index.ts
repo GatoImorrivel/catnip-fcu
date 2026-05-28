@@ -60,6 +60,7 @@ export {
   type FireSelectorSlotId,
 } from './fire-selector-layout';
 export {
+  assignFcuPositionToSlot,
   getMappingEntryForSlot,
   hasDuplicateFcuPositions,
   isGunSlotSelectionComplete,

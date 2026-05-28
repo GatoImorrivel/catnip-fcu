@@ -55,13 +55,16 @@ export function FireSelectorSlotPicker({
 
   return (
     <View style={[styles.grid, fillAvailable && styles.gridFill]}>
-      {slots.map((slot) => {
+      {slots.map((slot, index) => {
         const selected = selectedSlotIds.includes(slot.id);
         const disabled = !selected && atMax;
 
         return (
           <Pressable
             key={slot.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Switch position ${index + 1}`}
+            accessibilityState={{ selected, disabled }}
             onPress={() => {
               if (disabled) {
                 return;
@@ -91,19 +94,6 @@ export function FireSelectorSlotPicker({
                 }
               />
             </View>
-            <Text
-              style={[
-                styles.tileLabel,
-                {
-                  color: selected
-                    ? theme.colors.primaryForeground
-                    : theme.colors.foreground,
-                  fontWeight: '600',
-                },
-              ]}
-            >
-              {slot.label}
-            </Text>
           </Pressable>
         );
       })}
@@ -148,9 +138,5 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 100,
     width: '100%',
-  },
-  tileLabel: {
-    fontSize: 14,
-    marginTop: 4,
   },
 });

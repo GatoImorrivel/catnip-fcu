@@ -16,7 +16,6 @@ import { useCreateReplicaFcu } from '@/hooks/use-create-replica-fcu';
 import { useReplicas } from '@/hooks/use-replicas';
 import { releaseReplicaCreationSession } from '@/lib/fcu-connection-session';
 import { useTheme } from '@/hooks/use-theme';
-import type { FCUToHostEvent } from '@/messages/types';
 import { needsGunSlotSelection } from '@/replicas/fire-selector-layout';
 import type { FireSelectorSlotId } from '@/replicas/fire-selector-layout';
 import {
@@ -87,15 +86,7 @@ function CreateReplicaFlow({ mac, boundFcuName }: CreateReplicaFlowProps) {
   const [fcuNumPositions, setFcuNumPositions] = useState(0);
   const [mappingSubphase, setMappingSubphase] =
     useState<FireSelectorMappingSubphase>('pick');
-  const [liveFcuPosition, setLiveFcuPosition] = useState<number | null>(null);
-
-  const onCreateFcuEvent = useCallback((event: FCUToHostEvent) => {
-    if (event.tag === 'SelectorPositionChange') {
-      setLiveFcuPosition(event.position);
-    }
-  }, []);
-
-  const createFcu = useCreateReplicaFcu(mac, { onEvent: onCreateFcuEvent });
+  const createFcu = useCreateReplicaFcu(mac);
 
   const metadataFields = useMemo(() => getWeaponMetadataFields(type), [type]);
 
@@ -289,7 +280,6 @@ function CreateReplicaFlow({ mac, boundFcuName }: CreateReplicaFlowProps) {
       onSubphaseChange={setMappingSubphase}
       layout="fill"
       fcu={createFcu}
-      liveFcuPosition={liveFcuPosition}
       onSelectedGunSlotsChange={setSelectedGunSlotIds}
       onMappingChange={setSelectorPositionMapping}
       onFcuNumPositionsChange={setFcuNumPositions}
