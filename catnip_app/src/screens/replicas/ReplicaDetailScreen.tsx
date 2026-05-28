@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ConfirmModal, ProfileAssignmentRow } from '@/components/fcu-profiles';
@@ -14,6 +14,7 @@ import {
   type FcuProfileId,
   type SelectorPositionProfileAssignment,
 } from '@/fcu-profiles';
+import { useFcuProfileCatalogKey } from '@/hooks/use-fcu-profile-catalog-key';
 import { useFcuProfiles } from '@/hooks/use-fcu-profiles';
 import { useProfileFcuSync } from '@/hooks/use-profile-fcu-sync';
 import { useReplicas } from '@/hooks/use-replicas';
@@ -39,6 +40,7 @@ export function ReplicaDetailScreen() {
 
   const [replicaName, setReplicaName] = useState('');
   const [peripheralId, setPeripheralId] = useState<string | null>(null);
+  const [storedCompatibilityId, setStoredCompatibilityId] = useState<string | null>(null);
   const [replicaType, setReplicaType] = useState<ReplicaType | null>(null);
   const [selectorPositionMapping, setSelectorPositionMapping] = useState<
     SelectorPositionMappingEntry[]
@@ -60,13 +62,14 @@ export function ReplicaDetailScreen() {
   const [selectorBlockHeight, setSelectorBlockHeight] = useState(0);
   const [profileBlockHeight, setProfileBlockHeight] = useState(0);
 
-  const fcuProfiles = useFcuProfiles(peripheralId);
+  const compatibilityId = useFcuProfileCatalogKey(peripheralId, storedCompatibilityId);
+  const fcuProfiles = useFcuProfiles(compatibilityId);
   const {
     syncError,
     clearSyncError,
     pushProfileAtPosition,
     pushAssignmentForPosition,
-  } = useProfileFcuSync(peripheralId);
+  } = useProfileFcuSync({ peripheralId, compatibilityId });
 
   const positionAssignmentsRef = useRef(positionAssignments);
   positionAssignmentsRef.current = positionAssignments;
@@ -108,6 +111,11 @@ export function ReplicaDetailScreen() {
           }
           setReplicaName(replica.name);
           setPeripheralId(replica.bluetoothMac);
+          setStoredCompatibilityId(
+            typeof replica.fcuCompatibilityId === 'string'
+              ? replica.fcuCompatibilityId
+              : null,
+          );
           setReplicaType(assertReplicaType(replica.type));
           setSelectorPositionMapping(parseSelectorPositionMapping(replica));
           setPositionAssignments(parseSelectorPositionProfiles(replica));
@@ -124,8 +132,19 @@ export function ReplicaDetailScreen() {
       return () => {
         cancelled = true;
       };
-    }, [get, replicaId]),
+    },     [get, replicaId]),
   );
+
+  useEffect(() => {
+    if (!replicaId || !compatibilityId) {
+      return;
+    }
+    if (storedCompatibilityId === compatibilityId) {
+      return;
+    }
+    setStoredCompatibilityId(compatibilityId);
+    void update(replicaId, { fcuCompatibilityId: compatibilityId }).catch(() => undefined);
+  }, [compatibilityId, replicaId, storedCompatibilityId, update]);
 
   const hasMapping = selectorPositionMapping.length > 0;
 
@@ -311,7 +330,7 @@ export function ReplicaDetailScreen() {
   }, [deletingProfile]);
 
   const handleConfirmDeleteProfile = useCallback(async () => {
-    if (activeFcuPosition === null || !peripheralId || !deleteTargetProfileId) {
+    if (activeFcuPosition === null || !compatibilityId || !deleteTargetProfileId) {
       return;
     }
 
@@ -329,8 +348,8 @@ export function ReplicaDetailScreen() {
     try {
       fcuProfiles.deleteCustomProfile(deleteTargetProfileId);
       const fallback =
-        listProfiles(peripheralId).find((entry) => entry.isDefault) ??
-        listProfiles(peripheralId)[0];
+        listProfiles(compatibilityId).find((entry) => entry.isDefault) ??
+        listProfiles(compatibilityId)[0];
 
       const withoutDeleted = positionAssignmentsRef.current.filter(
         (entry) => entry.profileId !== deleteTargetProfileId,
@@ -361,9 +380,9 @@ export function ReplicaDetailScreen() {
   }, [
     activeFcuPosition,
     clearSyncError,
+    compatibilityId,
     deleteTargetProfileId,
     fcuProfiles,
-    peripheralId,
     persistAssignments,
     pushProfileAtPosition,
   ]);

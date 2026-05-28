@@ -30,7 +30,12 @@ export {
   type UseLiveSelectorRotationResult,
 } from './use-live-selector-rotation';
 export { useFcuProfiles, type UseFcuProfilesResult } from './use-fcu-profiles';
-export { useProfileFcuSync, type UseProfileFcuSyncResult } from './use-profile-fcu-sync';
+export { useFcuProfileCatalogKey } from './use-fcu-profile-catalog-key';
+export {
+  useProfileFcuSync,
+  type UseProfileFcuSyncOptions,
+  type UseProfileFcuSyncResult,
+} from './use-profile-fcu-sync';
 export {
   useFireSelectorAssign,
   slotAssignError,

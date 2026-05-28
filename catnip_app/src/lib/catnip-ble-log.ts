@@ -47,6 +47,7 @@ export function formatCharacteristics(chars: Characteristics): Record<string, un
     name: chars.name,
     kind: formatFcuKind(chars.kind),
     num_fire_positions: chars.num_fire_positions,
+    compatibility_id: chars.compatibility_id,
   };
 }
 

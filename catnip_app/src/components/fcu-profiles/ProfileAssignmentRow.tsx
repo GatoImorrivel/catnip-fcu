@@ -29,8 +29,8 @@ export function ProfileAssignmentRow({
   const { theme } = useTheme();
 
   const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId) ?? null;
-  const showActions =
-    !disabled && selectedProfile !== null && !selectedProfile.isDefault;
+  const showActionBar = !disabled && selectedProfile !== null;
+  const canEditOrDelete = showActionBar && !selectedProfile.isDefault;
 
   return (
     <View style={styles.wrapper}>
@@ -42,53 +42,61 @@ export function ProfileAssignmentRow({
         disabled={disabled}
         style={styles.dropdown}
       />
-      {showActions ? (
-        <View style={styles.actionsRow}>
-          <Pressable
-            onPress={onPressEdit}
-            disabled={deleting}
-            accessibilityRole="button"
-            accessibilityLabel="Edit profile"
-            style={({ pressed }) => [
-              styles.editButton,
-              {
-                borderColor: theme.colors.border,
-                opacity: pressed || deleting ? 0.6 : 1,
-              },
-            ]}
-          >
-            <MaterialIcons name="edit" size={22} color={theme.colors.foreground} />
-            <Text style={[styles.editLabel, { color: theme.colors.foreground }]}>Edit</Text>
-          </Pressable>
-          <Pressable
-            onPress={onPressDelete}
-            disabled={deleting}
-            accessibilityRole="button"
-            accessibilityLabel="Delete profile"
-            style={({ pressed }) => [
-              styles.deleteButton,
-              {
-                backgroundColor: theme.colors.primary,
-                opacity: pressed || deleting ? 0.6 : 1,
-              },
-            ]}
-          >
-            {deleting ? (
-              <ActivityIndicator color={theme.colors.primaryForeground} />
-            ) : (
-              <>
-                <MaterialIcons
-                  name="delete"
-                  size={22}
-                  color={theme.colors.primaryForeground}
-                />
-                <Text style={[styles.deleteLabel, { color: theme.colors.primaryForeground }]}>
-                  Delete
-                </Text>
-              </>
-            )}
-          </Pressable>
-        </View>
+      {showActionBar ? (
+        canEditOrDelete ? (
+          <View style={styles.actionsRow}>
+            <Pressable
+              onPress={onPressEdit}
+              disabled={deleting}
+              accessibilityRole="button"
+              accessibilityLabel="Edit profile"
+              style={({ pressed }) => [
+                styles.editButton,
+                {
+                  borderColor: theme.colors.border,
+                  opacity: pressed || deleting ? 0.6 : 1,
+                },
+              ]}
+            >
+              <MaterialIcons name="edit" size={22} color={theme.colors.foreground} />
+              <Text style={[styles.editLabel, { color: theme.colors.foreground }]}>Edit</Text>
+            </Pressable>
+            <Pressable
+              onPress={onPressDelete}
+              disabled={deleting}
+              accessibilityRole="button"
+              accessibilityLabel="Delete profile"
+              style={({ pressed }) => [
+                styles.deleteButton,
+                {
+                  backgroundColor: theme.colors.primary,
+                  opacity: pressed || deleting ? 0.6 : 1,
+                },
+              ]}
+            >
+              {deleting ? (
+                <ActivityIndicator color={theme.colors.primaryForeground} />
+              ) : (
+                <>
+                  <MaterialIcons
+                    name="delete"
+                    size={22}
+                    color={theme.colors.primaryForeground}
+                  />
+                  <Text style={[styles.deleteLabel, { color: theme.colors.primaryForeground }]}>
+                    Delete
+                  </Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+        ) : (
+          <View style={[styles.actionsRow, styles.defaultNotice]}>
+            <Text style={[styles.defaultNoticeText, { color: theme.colors.muted }]}>
+              Default profiles can't be edited or deleted.
+            </Text>
+          </View>
+        )
       ) : null}
     </View>
   );
@@ -113,6 +121,16 @@ const styles = StyleSheet.create({
     gap: 10,
     width: '100%',
     maxWidth: 360,
+    minHeight: 48,
+  },
+  defaultNotice: {
+    paddingHorizontal: 12,
+  },
+  defaultNoticeText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
   },
   editButton: {
     flexDirection: 'row',

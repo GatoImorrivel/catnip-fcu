@@ -16,6 +16,7 @@ import {
   parseSelectorPositionProfiles,
   upsertPositionProfileAssignment,
 } from '@/fcu-profiles';
+import { useFcuProfileCatalogKey } from '@/hooks/use-fcu-profile-catalog-key';
 import { useFcuProfiles } from '@/hooks/use-fcu-profiles';
 import { useProfileFcuSync } from '@/hooks/use-profile-fcu-sync';
 import { useFcuFireModeConfigFields } from '@/hooks/use-fcu-fire-mode';
@@ -62,13 +63,18 @@ export function NewProfileConfigScreen() {
 
   const { get, update } = useReplicas();
   const [peripheralId, setPeripheralId] = useState<string | null>(null);
+  const [storedCompatibilityId, setStoredCompatibilityId] = useState<string | null>(null);
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [schemaInitialized, setSchemaInitialized] = useState(false);
   const [creating, setCreating] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const fcuProfiles = useFcuProfiles(peripheralId);
-  const { pushProfileAtPosition, syncError } = useProfileFcuSync(peripheralId);
+  const compatibilityId = useFcuProfileCatalogKey(peripheralId, storedCompatibilityId);
+  const fcuProfiles = useFcuProfiles(compatibilityId);
+  const { pushProfileAtPosition, syncError } = useProfileFcuSync({
+    peripheralId,
+    compatibilityId,
+  });
 
   const {
     data: schema,
@@ -111,6 +117,11 @@ export function NewProfileConfigScreen() {
           return;
         }
         setPeripheralId(replica.bluetoothMac);
+        setStoredCompatibilityId(
+          typeof replica.fcuCompatibilityId === 'string'
+            ? replica.fcuCompatibilityId
+            : null,
+        );
         setLoadError(null);
       })
       .catch((err: unknown) => {
@@ -138,13 +149,13 @@ export function NewProfileConfigScreen() {
   }, [firemodeName]);
 
   const handleCreate = useCallback(async () => {
-    if (!firemodeName || !profileName || fcuPosition === null || !peripheralId) {
+    if (!firemodeName || !profileName || fcuPosition === null || !compatibilityId) {
       return;
     }
 
     setCreating(true);
     try {
-      assertUniqueProfileName(peripheralId, profileName);
+      assertUniqueProfileName(compatibilityId, profileName);
       const created = fcuProfiles.createCustomProfile(profileName, firemodeName, configValues);
 
       const replica = await get(replicaId);
@@ -174,7 +185,7 @@ export function NewProfileConfigScreen() {
     fcuProfiles,
     firemodeName,
     get,
-    peripheralId,
+    compatibilityId,
     profileName,
     pushProfileAtPosition,
     replicaId,

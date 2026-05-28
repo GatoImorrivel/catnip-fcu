@@ -9,6 +9,7 @@ export {
   getOrCreateCatalog,
   getProfile,
   listProfiles,
+  migrateCatalogFromPeripheralId,
   removeProfile,
   setDefaultProfileConfig,
   updateProfile,

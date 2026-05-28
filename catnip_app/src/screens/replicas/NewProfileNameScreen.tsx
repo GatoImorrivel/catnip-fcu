@@ -18,6 +18,7 @@ import {
   validateProfileName,
 } from '@/fcu-profiles';
 import { defaultWireValuesFromSchema } from '@/lib/firemode-config-utils';
+import { useFcuProfileCatalogKey } from '@/hooks/use-fcu-profile-catalog-key';
 import { useFcuProfiles } from '@/hooks/use-fcu-profiles';
 import { useFcuFireModeConfigFields } from '@/hooks/use-fcu-fire-mode';
 import { useProfileFcuSync } from '@/hooks/use-profile-fcu-sync';
@@ -54,13 +55,18 @@ export function NewProfileNameScreen() {
 
   const { get, update } = useReplicas();
   const [peripheralId, setPeripheralId] = useState<string | null>(null);
+  const [storedCompatibilityId, setStoredCompatibilityId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profileName, setProfileName] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const fcuProfiles = useFcuProfiles(peripheralId);
-  const { pushProfileAtPosition, syncError } = useProfileFcuSync(peripheralId);
+  const compatibilityId = useFcuProfileCatalogKey(peripheralId, storedCompatibilityId);
+  const fcuProfiles = useFcuProfiles(compatibilityId);
+  const { pushProfileAtPosition, syncError } = useProfileFcuSync({
+    peripheralId,
+    compatibilityId,
+  });
   const { data: fireModeSchema } = useFcuFireModeConfigFields(peripheralId, firemodeName, {
     fetchEnabled: peripheralId !== null && firemodeName !== null,
   });
@@ -92,6 +98,11 @@ export function NewProfileNameScreen() {
           return;
         }
         setPeripheralId(replica.bluetoothMac);
+        setStoredCompatibilityId(
+          typeof replica.fcuCompatibilityId === 'string'
+            ? replica.fcuCompatibilityId
+            : null,
+        );
         setLoadError(null);
       })
       .catch((err: unknown) => {
@@ -111,25 +122,25 @@ export function NewProfileNameScreen() {
       if (formatError) {
         return formatError;
       }
-      if (peripheralId && isProfileNameTaken(peripheralId, name)) {
+      if (compatibilityId && isProfileNameTaken(compatibilityId, name)) {
         return 'A profile with this name already exists';
       }
       return null;
     },
-    [peripheralId],
+    [compatibilityId],
   );
 
   const nameTaken = useMemo(() => {
-    if (!peripheralId || !profileName.trim()) {
+    if (!compatibilityId || !profileName.trim()) {
       return false;
     }
-    return isProfileNameTaken(peripheralId, profileName);
-  }, [peripheralId, profileName]);
+    return isProfileNameTaken(compatibilityId, profileName);
+  }, [compatibilityId, profileName]);
 
   const handleCreate = useCallback(async () => {
     const trimmedName = profileName.trim();
     const error = validateName(trimmedName);
-    if (error || fcuPosition === null || !firemodeName || !peripheralId) {
+    if (error || fcuPosition === null || !firemodeName || !compatibilityId) {
       setNameError(error);
       return;
     }
@@ -138,7 +149,7 @@ export function NewProfileNameScreen() {
     setLoadError(null);
 
     try {
-      assertUniqueProfileName(peripheralId, trimmedName);
+      assertUniqueProfileName(compatibilityId, trimmedName);
       if (!fireModeSchema) {
         setLoadError('Fire mode schema not loaded from FCU yet');
         return;
@@ -183,7 +194,7 @@ export function NewProfileNameScreen() {
     fireModeSchema,
     firemodeName,
     get,
-    peripheralId,
+    compatibilityId,
     profileName,
     pushProfileAtPosition,
     replicaId,
@@ -199,7 +210,7 @@ export function NewProfileNameScreen() {
     fireModeSchema !== null &&
     firemodeName !== null &&
     fcuPosition !== null &&
-    peripheralId !== null &&
+    compatibilityId !== null &&
     validateName(profileName) === null;
 
   return (

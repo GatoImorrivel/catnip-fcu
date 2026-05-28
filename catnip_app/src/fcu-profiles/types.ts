@@ -4,16 +4,16 @@ export type FcuProfileId = string;
 
 export type FcuProfile = {
   id: FcuProfileId;
-  /** User-visible profile name (unique per FCU, including default profiles). */
+  /** User-visible profile name (unique per compatibility family, including defaults). */
   name: string;
   firemodeName: FireModeName;
   config: Record<string, string>;
   isDefault: boolean;
 };
 
-/** Per FCU catalog of profiles (shared across replicas on same MAC). */
+/** Profile catalog shared by all FCUs with the same {@link compatibilityId}. */
 export type FcuProfileCatalog = {
-  fcuId: string;
+  compatibilityId: string;
   profiles: FcuProfile[];
 };
 

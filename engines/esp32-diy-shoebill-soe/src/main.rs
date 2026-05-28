@@ -100,6 +100,7 @@ impl FCU for ShoebillSOE<'_> {
             num_fire_positions: self.fire_selector.position_count() as u8,
             name: "Shoebill SOE ESP32".into(),
             kind: FCUKind::HPA { num_solenoids: 1 },
+            compatibility_id: "catnip.shoebill-soe-hpa".into(),
         }
     }
 

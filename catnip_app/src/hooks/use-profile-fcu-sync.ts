@@ -13,6 +13,11 @@ import type { FireModeName, UpdateFireModeConfigError } from '@/messages/types';
 
 import { useFcuSaveFireModeAssignment } from './use-fcu-fire-mode';
 
+export type UseProfileFcuSyncOptions = {
+  peripheralId: string | null;
+  compatibilityId: string | null;
+};
+
 export type UseProfileFcuSyncResult = {
   syncing: boolean;
   syncError: string | null;
@@ -32,8 +37,11 @@ export type UseProfileFcuSyncResult = {
   ) => Promise<UpdateFireModeConfigError | null>;
 };
 
-export function useProfileFcuSync(fcuId: string | null): UseProfileFcuSyncResult {
-  const { save, saving } = useFcuSaveFireModeAssignment(fcuId);
+export function useProfileFcuSync({
+  peripheralId,
+  compatibilityId,
+}: UseProfileFcuSyncOptions): UseProfileFcuSyncResult {
+  const { save, saving } = useFcuSaveFireModeAssignment(peripheralId);
   const [syncError, setSyncError] = useState<string | null>(null);
   const queueRef = useRef<Promise<UpdateFireModeConfigError | null>>(
     Promise.resolve(null),
@@ -56,13 +64,19 @@ export function useProfileFcuSync(fcuId: string | null): UseProfileFcuSyncResult
 
   const pushProfileAtPosition = useCallback(
     (fcuPosition: number, profileId: FcuProfileId) => {
-      if (!fcuId) {
+      if (!peripheralId) {
         const message = 'FCU not connected';
         setSyncError(message);
         return Promise.reject(new Error(message));
       }
 
-      const profile = resolveProfileById(fcuId, profileId);
+      if (!compatibilityId) {
+        const message = 'FCU compatibility id not available';
+        setSyncError(message);
+        return Promise.reject(new Error(message));
+      }
+
+      const profile = resolveProfileById(compatibilityId, profileId);
       if (!profile) {
         const message = 'Profile not found';
         setSyncError(message);
@@ -84,12 +98,12 @@ export function useProfileFcuSync(fcuId: string | null): UseProfileFcuSyncResult
         }
       });
     },
-    [enqueue, fcuId, save],
+    [compatibilityId, enqueue, peripheralId, save],
   );
 
   const pushConfigAtPosition = useCallback(
     (fcuPosition: number, firemodeName: FireModeName, config: Record<string, string>) => {
-      if (!fcuId) {
+      if (!peripheralId) {
         const message = 'FCU not connected';
         setSyncError(message);
         return Promise.reject(new Error(message));
@@ -110,23 +124,23 @@ export function useProfileFcuSync(fcuId: string | null): UseProfileFcuSyncResult
         }
       });
     },
-    [enqueue, fcuId, save],
+    [enqueue, peripheralId, save],
   );
 
   const pushAssignmentForPosition = useCallback(
     (fcuPosition: number, assignments: SelectorPositionProfileAssignment[]) => {
-      if (!fcuId) {
+      if (!peripheralId || !compatibilityId) {
         return Promise.resolve(null);
       }
 
-      const profile = resolveProfileForPosition(fcuId, assignments, fcuPosition);
+      const profile = resolveProfileForPosition(compatibilityId, assignments, fcuPosition);
       if (!profile) {
         return Promise.resolve(null);
       }
 
       return pushProfileAtPosition(fcuPosition, profile.id);
     },
-    [fcuId, pushProfileAtPosition],
+    [compatibilityId, peripheralId, pushProfileAtPosition],
   );
 
   return {

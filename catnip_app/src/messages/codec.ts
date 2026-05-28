@@ -4,6 +4,7 @@
  */
 import {
   FireModeConfigTypeUnit,
+  type Characteristics,
   type FCUKind,
   type FCUToHostEvent,
   type FireModeConfigSchemaEntry,
@@ -119,11 +120,12 @@ export class PostcardReader {
     throw new PostcardDecodeError(`invalid FCUKind ${variant}`);
   }
 
-  readCharacteristics() {
+  readCharacteristics(): Characteristics {
     const num_fire_positions = this.readU8();
     const name = this.readString();
     const kind = this.readFcuKind();
-    return { num_fire_positions, name, kind };
+    const compatibility_id = this.readString();
+    return { num_fire_positions, name, kind, compatibility_id };
   }
 
   readFireModeConfigSchemaEntry(): FireModeConfigSchemaEntry {
@@ -232,6 +234,21 @@ export class PostcardReader {
     }
     throw new PostcardDecodeError('unexpected end of varint');
   }
+}
+
+/** Encodes `catnip_core::Characteristics` for tests — keep in sync with {@link PostcardReader.readCharacteristics}. */
+export function encodeCharacteristics(chars: Characteristics): Uint8Array {
+  const writer = new PostcardWriter();
+  writer.writeU8(chars.num_fire_positions);
+  writer.writeString(chars.name);
+  if (chars.kind.tag === 'HPA') {
+    writer.writeU8(0);
+    writer.writeU8(chars.kind.num_solenoids);
+  } else {
+    writer.writeU8(1);
+  }
+  writer.writeString(chars.compatibility_id);
+  return writer.toUint8Array();
 }
 
 export class PostcardWriter {

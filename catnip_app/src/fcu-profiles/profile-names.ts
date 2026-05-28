@@ -21,7 +21,7 @@ export function validateProfileName(name: string): string | null {
 }
 
 export function isProfileNameTaken(
-  fcuId: string,
+  compatibilityId: string,
   name: string,
   excludeProfileId?: FcuProfileId,
 ): boolean {
@@ -30,7 +30,7 @@ export function isProfileNameTaken(
     return false;
   }
 
-  return listProfiles(fcuId).some(
+  return listProfiles(compatibilityId).some(
     (profile) =>
       profile.id !== excludeProfileId &&
       normalizeProfileName(getProfileDisplayName(profile)) === normalized,
@@ -38,7 +38,7 @@ export function isProfileNameTaken(
 }
 
 export function assertUniqueProfileName(
-  fcuId: string,
+  compatibilityId: string,
   name: string,
   excludeProfileId?: FcuProfileId,
 ): void {
@@ -47,7 +47,7 @@ export function assertUniqueProfileName(
     throw new Error(formatError);
   }
 
-  if (isProfileNameTaken(fcuId, name, excludeProfileId)) {
+  if (isProfileNameTaken(compatibilityId, name, excludeProfileId)) {
     throw new Error('A profile with this name already exists');
   }
 }

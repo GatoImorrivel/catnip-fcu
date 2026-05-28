@@ -49,11 +49,15 @@ export function SelectCatnipFcuScreen() {
 
       try {
         await stopScan().catch(() => undefined);
-        await prepareReplicaCreationFcu(device.id);
+        const characteristics = await prepareReplicaCreationFcu(device.id);
 
         router.push({
           pathname: '/replicas/new',
-          params: { bluetoothMac: device.id, fcuName: getPeripheralLabel(device) },
+          params: {
+            bluetoothMac: device.id,
+            fcuName: getPeripheralLabel(device),
+            fcuCompatibilityId: characteristics.compatibility_id,
+          },
         });
       } catch (err: unknown) {
         releaseReplicaCreationSession();
@@ -129,12 +133,9 @@ export function SelectCatnipFcuScreen() {
                 },
               ]}
             >
-              <View style={styles.deviceText}>
-                <Text style={[styles.deviceName, { color: theme.colors.foreground }]}>
-                  {getPeripheralLabel(item)}
-                </Text>
-                <Text style={[styles.deviceId, { color: theme.colors.muted }]}>{item.id}</Text>
-              </View>
+              <Text style={[styles.deviceName, { color: theme.colors.foreground, flex: 1 }]}>
+                {getPeripheralLabel(item)}
+              </Text>
               {busy ? (
                 <ActivityIndicator color={theme.colors.primary} />
               ) : (
@@ -201,16 +202,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 10,
   },
-  deviceText: {
-    flex: 1,
-    gap: 2,
-  },
   deviceName: {
     fontSize: 16,
     fontWeight: '600',
-  },
-  deviceId: {
-    fontSize: 13,
-    fontVariant: ['tabular-nums'],
   },
 });

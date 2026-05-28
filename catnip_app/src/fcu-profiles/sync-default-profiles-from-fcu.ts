@@ -10,34 +10,35 @@ import { getDefaultProfileId, getOrCreateCatalog, setDefaultProfileConfig } from
 
 /**
  * Reads fire mode + config from the FCU for each mapped hardware position, updates
- * the in-memory default profiles for that FCU, and returns position assignments.
+ * the in-memory default profiles for that compatibility family, and returns position assignments.
  */
 export async function loadDefaultProfilesFromFcu(
-  fcuId: string,
+  peripheralId: string,
+  compatibilityId: string,
   mapping: SelectorPositionMappingEntry[],
 ): Promise<SelectorPositionProfileAssignment[]> {
   if (mapping.length === 0) {
     return [];
   }
 
-  getOrCreateCatalog(fcuId);
-  acquireFcuSession(fcuId);
+  getOrCreateCatalog(compatibilityId);
+  acquireFcuSession(peripheralId);
 
   try {
-    const client = await waitForFcuSessionReady(fcuId);
+    const client = await waitForFcuSessionReady(peripheralId);
     const assignments: SelectorPositionProfileAssignment[] = [];
 
     for (const entry of mapping) {
       const positionConfig = await client.getFireModeForPosition(entry.fcuPosition);
-      setDefaultProfileConfig(fcuId, positionConfig.firemode_name, positionConfig.config);
+      setDefaultProfileConfig(compatibilityId, positionConfig.firemode_name, positionConfig.config);
       assignments.push({
         fcuPosition: entry.fcuPosition,
-        profileId: getDefaultProfileId(fcuId, positionConfig.firemode_name),
+        profileId: getDefaultProfileId(compatibilityId, positionConfig.firemode_name),
       });
     }
 
     return assignments;
   } finally {
-    releaseFcuSession(fcuId);
+    releaseFcuSession(peripheralId);
   }
 }

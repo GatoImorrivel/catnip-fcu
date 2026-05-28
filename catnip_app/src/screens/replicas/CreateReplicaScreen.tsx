@@ -43,31 +43,45 @@ const WEAPON_TYPE_OPTIONS = REPLICA_TYPES.map((type) => ({ value: type, label: t
 type CreateReplicaFlowProps = {
   mac: string;
   boundFcuName: string;
+  fcuCompatibilityId: string;
 };
 
 export function CreateReplicaScreen() {
   const router = useRouter();
-  const { bluetoothMac, fcuName } = useLocalSearchParams<{
+  const { bluetoothMac, fcuName, fcuCompatibilityId } = useLocalSearchParams<{
     bluetoothMac?: string;
     fcuName?: string;
+    fcuCompatibilityId?: string;
   }>();
   const mac = typeof bluetoothMac === 'string' ? bluetoothMac : '';
   const boundFcuName = typeof fcuName === 'string' ? fcuName.trim() : '';
+  const compatibilityId =
+    typeof fcuCompatibilityId === 'string' ? fcuCompatibilityId.trim() : '';
 
   useEffect(() => {
-    if (!mac || !boundFcuName) {
+    if (!mac || !boundFcuName || !compatibilityId) {
       router.replace('/replicas/select-fcu');
     }
-  }, [boundFcuName, mac, router]);
+  }, [boundFcuName, compatibilityId, mac, router]);
 
-  if (!mac || !boundFcuName) {
+  if (!mac || !boundFcuName || !compatibilityId) {
     return null;
   }
 
-  return <CreateReplicaFlow mac={mac} boundFcuName={boundFcuName} />;
+  return (
+    <CreateReplicaFlow
+      mac={mac}
+      boundFcuName={boundFcuName}
+      fcuCompatibilityId={compatibilityId}
+    />
+  );
 }
 
-function CreateReplicaFlow({ mac, boundFcuName }: CreateReplicaFlowProps) {
+function CreateReplicaFlow({
+  mac,
+  boundFcuName,
+  fcuCompatibilityId,
+}: CreateReplicaFlowProps) {
   const router = useRouter();
   const navigation = useNavigation();
   const { theme } = useTheme();
@@ -228,13 +242,18 @@ function CreateReplicaFlow({ mac, boundFcuName }: CreateReplicaFlowProps) {
     setError(null);
 
     try {
-      const assignments = await loadDefaultProfilesFromFcu(mac, selectorPositionMapping);
+      const assignments = await loadDefaultProfilesFromFcu(
+        mac,
+        fcuCompatibilityId,
+        selectorPositionMapping,
+      );
 
       await create({
         name,
         type,
         bluetoothMac: mac,
         fcuName: boundFcuName,
+        fcuCompatibilityId,
         ...metadata,
         selectorPositionMapping,
         selectorPositionProfiles: assignments,
@@ -250,6 +269,7 @@ function CreateReplicaFlow({ mac, boundFcuName }: CreateReplicaFlowProps) {
   }, [
     boundFcuName,
     create,
+    fcuCompatibilityId,
     mac,
     mappingStepComplete,
     metadata,

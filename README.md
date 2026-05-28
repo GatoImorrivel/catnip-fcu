@@ -7,7 +7,7 @@ Catnip is protocol/framework for creating Bluetooth enabled airsoft FCUs
 
 ## Compatibility
 
-Currently theres implementations for ESP32 based boards (BLE required). Any board that has BLE that can talk the Catnip protocol will work in the phone app
+Currently theres implementations for ESP32 based boards (BLE required). Any board that has BLE that can talk the Catnip protocol will work in the phone app. FCU implementors: see `cargo doc -p catnip_core` for `Characteristics::compatibility_id` (profile compatibility across devices).
 
 Phone app is IOS and Android compatible
 

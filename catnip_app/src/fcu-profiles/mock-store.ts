@@ -9,19 +9,22 @@ import type { FcuProfile, FcuProfileCatalog, FcuProfileId } from './types';
 
 const catalogs = new Map<string, FcuProfileCatalog>();
 
-export function getDefaultProfileId(fcuId: string, firemodeName: FireModeName): string {
-  return `default:${fcuId}:${firemodeName}`;
+export function getDefaultProfileId(
+  compatibilityId: string,
+  firemodeName: FireModeName,
+): string {
+  return `default:${compatibilityId}:${firemodeName}`;
 }
 
-function defaultProfileId(fcuId: string, firemodeName: FireModeName): string {
-  return getDefaultProfileId(fcuId, firemodeName);
+function defaultProfileId(compatibilityId: string, firemodeName: FireModeName): string {
+  return getDefaultProfileId(compatibilityId, firemodeName);
 }
 
-function seedDefaultProfiles(fcuId: string): FcuProfileCatalog {
+function seedDefaultProfiles(compatibilityId: string): FcuProfileCatalog {
   const profiles: FcuProfile[] = MOCK_SUPPORTED_FIRE_MODES.map((firemodeName) => {
     const schema = getMockFireModeSchema(firemodeName);
     return {
-      id: defaultProfileId(fcuId, firemodeName),
+      id: defaultProfileId(compatibilityId, firemodeName),
       name: formatFireModeName(firemodeName),
       firemodeName,
       config: defaultWireValuesFromSchema(schema),
@@ -29,34 +32,53 @@ function seedDefaultProfiles(fcuId: string): FcuProfileCatalog {
     };
   });
 
-  const catalog: FcuProfileCatalog = { fcuId, profiles };
-  catalogs.set(fcuId, catalog);
+  const catalog: FcuProfileCatalog = { compatibilityId, profiles };
+  catalogs.set(compatibilityId, catalog);
   return catalog;
 }
 
-export function getOrCreateCatalog(fcuId: string): FcuProfileCatalog {
-  const existing = catalogs.get(fcuId);
+/** Moves an in-memory catalog keyed by legacy BLE address to `compatibilityId`. */
+export function migrateCatalogFromPeripheralId(
+  peripheralId: string,
+  compatibilityId: string,
+): void {
+  if (peripheralId === compatibilityId) {
+    return;
+  }
+  const legacy = catalogs.get(peripheralId);
+  if (!legacy || catalogs.has(compatibilityId)) {
+    return;
+  }
+  catalogs.set(compatibilityId, { compatibilityId, profiles: legacy.profiles });
+  catalogs.delete(peripheralId);
+}
+
+export function getOrCreateCatalog(compatibilityId: string): FcuProfileCatalog {
+  const existing = catalogs.get(compatibilityId);
   if (existing) {
     return existing;
   }
-  return seedDefaultProfiles(fcuId);
+  return seedDefaultProfiles(compatibilityId);
 }
 
-export function listProfiles(fcuId: string): FcuProfile[] {
-  return [...getOrCreateCatalog(fcuId).profiles];
+export function listProfiles(compatibilityId: string): FcuProfile[] {
+  return [...getOrCreateCatalog(compatibilityId).profiles];
 }
 
-export function getProfile(fcuId: string, profileId: FcuProfileId): FcuProfile | undefined {
-  return getOrCreateCatalog(fcuId).profiles.find((profile) => profile.id === profileId);
+export function getProfile(
+  compatibilityId: string,
+  profileId: FcuProfileId,
+): FcuProfile | undefined {
+  return getOrCreateCatalog(compatibilityId).profiles.find((profile) => profile.id === profileId);
 }
 
 export function addProfile(
-  fcuId: string,
+  compatibilityId: string,
   input: Omit<FcuProfile, 'id'> & { id?: FcuProfileId },
 ): FcuProfile {
-  const catalog = getOrCreateCatalog(fcuId);
+  const catalog = getOrCreateCatalog(compatibilityId);
   if (!input.isDefault) {
-    assertUniqueProfileName(fcuId, input.name);
+    assertUniqueProfileName(compatibilityId, input.name);
   }
   const profile: FcuProfile = {
     id: input.id ?? ExpoCrypto.randomUUID(),
@@ -69,8 +91,8 @@ export function addProfile(
   return profile;
 }
 
-export function removeProfile(fcuId: string, profileId: FcuProfileId): void {
-  const catalog = getOrCreateCatalog(fcuId);
+export function removeProfile(compatibilityId: string, profileId: FcuProfileId): void {
+  const catalog = getOrCreateCatalog(compatibilityId);
   const index = catalog.profiles.findIndex((profile) => profile.id === profileId);
   if (index < 0) {
     throw new Error('Profile not found');
@@ -84,18 +106,18 @@ export function removeProfile(fcuId: string, profileId: FcuProfileId): void {
 }
 
 export function setDefaultProfileConfig(
-  fcuId: string,
+  compatibilityId: string,
   firemodeName: FireModeName,
   config: Record<string, string>,
 ): FcuProfile {
-  const catalog = getOrCreateCatalog(fcuId);
+  const catalog = getOrCreateCatalog(compatibilityId);
   const index = catalog.profiles.findIndex(
     (profile) => profile.isDefault && profile.firemodeName === firemodeName,
   );
 
   if (index < 0) {
     const profile: FcuProfile = {
-      id: defaultProfileId(fcuId, firemodeName),
+      id: defaultProfileId(compatibilityId, firemodeName),
       name: formatFireModeName(firemodeName),
       firemodeName,
       config: { ...config },
@@ -114,11 +136,11 @@ export function setDefaultProfileConfig(
 }
 
 export function updateProfile(
-  fcuId: string,
+  compatibilityId: string,
   profileId: FcuProfileId,
   config: Record<string, string>,
 ): FcuProfile {
-  const catalog = getOrCreateCatalog(fcuId);
+  const catalog = getOrCreateCatalog(compatibilityId);
   const index = catalog.profiles.findIndex((profile) => profile.id === profileId);
   if (index < 0) {
     throw new Error('Profile not found');

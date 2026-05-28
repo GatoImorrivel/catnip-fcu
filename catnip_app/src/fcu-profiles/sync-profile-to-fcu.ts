@@ -29,18 +29,20 @@ export function formatUpdateFireModeConfigError(
 }
 
 export function resolveProfileForPosition(
-  fcuId: string,
+  compatibilityId: string,
   assignments: SelectorPositionProfileAssignment[],
   fcuPosition: number,
 ): FcuProfile | null {
   const profileId =
-    profileIdForPosition(assignments, fcuPosition) ?? listProfiles(fcuId)[0]?.id ?? null;
+    profileIdForPosition(assignments, fcuPosition) ??
+    listProfiles(compatibilityId)[0]?.id ??
+    null;
 
   if (!profileId) {
     return null;
   }
 
-  return getProfile(fcuId, profileId) ?? null;
+  return getProfile(compatibilityId, profileId) ?? null;
 }
 
 export async function syncFireModeConfigToFcu(
@@ -68,8 +70,8 @@ export async function syncProfileToFcu(
 }
 
 export function resolveProfileById(
-  fcuId: string,
+  compatibilityId: string,
   profileId: FcuProfileId,
 ): FcuProfile | null {
-  return getProfile(fcuId, profileId) ?? null;
+  return getProfile(compatibilityId, profileId) ?? null;
 }

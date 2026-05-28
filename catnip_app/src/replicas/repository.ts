@@ -15,6 +15,7 @@ import type {
 import {
   assertReplicaType,
   normalizeBluetoothMac,
+  normalizeFcuCompatibilityId,
   normalizeFcuName,
   normalizeReplicaName,
   omitReservedKeys,
@@ -67,6 +68,7 @@ export function createReplicaRepository(
         type: assertReplicaType(input.type),
         bluetoothMac: normalizeBluetoothMac(input.bluetoothMac),
         fcuName: normalizeFcuName(input.fcuName),
+        fcuCompatibilityId: normalizeFcuCompatibilityId(input.fcuCompatibilityId),
         createdAt: now,
         updatedAt: now,
       };
@@ -100,6 +102,10 @@ export function createReplicaRepository(
 
       if ('fcuName' in input && input.fcuName !== undefined) {
         patch.fcuName = normalizeFcuName(input.fcuName);
+      }
+
+      if ('fcuCompatibilityId' in input && input.fcuCompatibilityId !== undefined) {
+        patch.fcuCompatibilityId = normalizeFcuCompatibilityId(input.fcuCompatibilityId);
       }
 
       const updated: Replica = {

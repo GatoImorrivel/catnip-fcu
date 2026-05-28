@@ -16,6 +16,7 @@ import { FireModeConfigSchemaForm } from '@/components/firemode';
 import { getProfileDisplayName, type FcuProfileId } from '@/fcu-profiles';
 import { buildWireConfigForFcu, wireConfigsEqual } from '@/lib/firemode-config-utils';
 import { useCatnipFcu } from '@/hooks/use-catnip-fcu';
+import { useFcuProfileCatalogKey } from '@/hooks/use-fcu-profile-catalog-key';
 import { useFcuProfiles } from '@/hooks/use-fcu-profiles';
 import { useFcuFireModeConfigFields } from '@/hooks/use-fcu-fire-mode';
 import { useProfileFcuSync } from '@/hooks/use-profile-fcu-sync';
@@ -55,6 +56,7 @@ export function EditProfileScreen() {
 
   const { get } = useReplicas();
   const [peripheralId, setPeripheralId] = useState<string | null>(null);
+  const [storedCompatibilityId, setStoredCompatibilityId] = useState<string | null>(null);
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [baselineValues, setBaselineValues] = useState<Record<string, string>>({});
   const [schemaInitialized, setSchemaInitialized] = useState(false);
@@ -67,8 +69,12 @@ export function EditProfileScreen() {
   const allowLeaveRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fcuProfiles = useFcuProfiles(peripheralId);
-  const { pushConfigAtPosition, syncError, syncing } = useProfileFcuSync(peripheralId);
+  const compatibilityId = useFcuProfileCatalogKey(peripheralId, storedCompatibilityId);
+  const fcuProfiles = useFcuProfiles(compatibilityId);
+  const { pushConfigAtPosition, syncError, syncing } = useProfileFcuSync({
+    peripheralId,
+    compatibilityId,
+  });
   const { client, ready: fcuReady } = useCatnipFcu(peripheralId);
   const profile = profileId ? fcuProfiles.getProfileById(profileId) : undefined;
   const firemodeName = profile?.firemodeName ?? null;
@@ -133,6 +139,11 @@ export function EditProfileScreen() {
           return;
         }
         setPeripheralId(replica.bluetoothMac);
+        setStoredCompatibilityId(
+          typeof replica.fcuCompatibilityId === 'string'
+            ? replica.fcuCompatibilityId
+            : null,
+        );
         setLoadError(null);
       })
       .catch((err: unknown) => {

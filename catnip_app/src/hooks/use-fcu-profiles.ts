@@ -33,7 +33,7 @@ export type UseFcuProfilesResult = {
   defaultConfigForFireMode: (firemodeName: FireModeName) => Record<string, string>;
 };
 
-export function useFcuProfiles(fcuId: string | null): UseFcuProfilesResult {
+export function useFcuProfiles(compatibilityId: string | null): UseFcuProfilesResult {
   const [version, setVersion] = useState(0);
 
   const bump = useCallback(() => {
@@ -41,56 +41,61 @@ export function useFcuProfiles(fcuId: string | null): UseFcuProfilesResult {
   }, []);
 
   const profiles = useMemo(() => {
-    if (!fcuId) {
+    if (!compatibilityId) {
       return [];
     }
     void version;
-    return listProfiles(fcuId);
-  }, [fcuId, version]);
+    return listProfiles(compatibilityId);
+  }, [compatibilityId, version]);
 
   const getProfileById = useCallback(
     (profileId: FcuProfileId) => {
-      if (!fcuId) {
+      if (!compatibilityId) {
         return undefined;
       }
-      return getProfile(fcuId, profileId);
+      return getProfile(compatibilityId, profileId);
     },
-    [fcuId, version],
+    [compatibilityId, version],
   );
 
   const createCustomProfile = useCallback(
     (name: string, firemodeName: FireModeName, config: Record<string, string>) => {
-      if (!fcuId) {
-        throw new Error('FCU not connected');
+      if (!compatibilityId) {
+        throw new Error('FCU compatibility id not available');
       }
-      const created = addProfile(fcuId, { name, firemodeName, config, isDefault: false });
+      const created = addProfile(compatibilityId, {
+        name,
+        firemodeName,
+        config,
+        isDefault: false,
+      });
       bump();
       return created;
     },
-    [bump, fcuId],
+    [bump, compatibilityId],
   );
 
   const updateCustomProfile = useCallback(
     (profileId: FcuProfileId, config: Record<string, string>) => {
-      if (!fcuId) {
-        throw new Error('FCU not connected');
+      if (!compatibilityId) {
+        throw new Error('FCU compatibility id not available');
       }
-      const updated = updateProfile(fcuId, profileId, config);
+      const updated = updateProfile(compatibilityId, profileId, config);
       bump();
       return updated;
     },
-    [bump, fcuId],
+    [bump, compatibilityId],
   );
 
   const deleteCustomProfile = useCallback(
     (profileId: FcuProfileId) => {
-      if (!fcuId) {
-        throw new Error('FCU not connected');
+      if (!compatibilityId) {
+        throw new Error('FCU compatibility id not available');
       }
-      removeProfile(fcuId, profileId);
+      removeProfile(compatibilityId, profileId);
       bump();
     },
-    [bump, fcuId],
+    [bump, compatibilityId],
   );
 
   const getSchemaForFireMode = useCallback((firemodeName: FireModeName) => {

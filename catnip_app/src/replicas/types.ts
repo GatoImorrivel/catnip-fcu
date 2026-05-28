@@ -12,6 +12,8 @@ export interface ReplicaCore {
   bluetoothMac: string;
   /** Advertised / local BLE name captured when the FCU was paired at creation. */
   fcuName?: string;
+  /** From GetCharacteristics; keys shared profile catalogs across BLE addresses. */
+  fcuCompatibilityId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,6 +32,7 @@ export type CreateReplicaInput = {
   type: ReplicaType;
   bluetoothMac: string;
   fcuName: string;
+  fcuCompatibilityId: string;
 } & Record<string, unknown>;
 
 export type UpdateReplicaInput = Partial<{
@@ -37,5 +40,6 @@ export type UpdateReplicaInput = Partial<{
   type: ReplicaType;
   bluetoothMac: string;
   fcuName: string;
+  fcuCompatibilityId: string;
 }> &
   Record<string, unknown>;

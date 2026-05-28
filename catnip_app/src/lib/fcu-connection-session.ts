@@ -1,6 +1,7 @@
 import type { Characteristics, FCUToHostEvent } from '@/messages/types';
 
 import { CatnipBleClient } from './catnip-ble-client';
+import { assertCharacteristicsCompatibilityId } from './fcu-compatibility';
 import { BleManager, ensureBleManagerStarted } from './ble-manager';
 
 export type FcuSessionStatus = 'idle' | 'connecting' | 'ready' | 'error';
@@ -313,6 +314,7 @@ export async function ensureFcuSessionCharacteristics(
       }
 
       const characteristics = await client.getCharacteristics();
+      assertCharacteristicsCompatibilityId(characteristics);
       if (current) {
         current.characteristics = characteristics;
         current.characteristicsError = null;

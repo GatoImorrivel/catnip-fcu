@@ -11,6 +11,8 @@ export type Characteristics = {
   num_fire_positions: number;
   name: string;
   kind: FCUKind;
+  /** Firmware-family key; profile catalogs are keyed by this, not BLE address. */
+  compatibility_id: string;
 };
 
 /** Mirrors `catnip_core::FireModeConfigTypeUnit`. */
