@@ -1,11 +1,10 @@
 import * as ExpoCrypto from 'expo-crypto';
 
-import { defaultWireValuesFromSchema } from '@/lib/firemode-config-utils';
 import type { KeyValueStore } from '@/replicas/persistence';
 import { defaultKeyValueStore } from '@/replicas/persistence';
 import { formatFireModeName, type FireModeName } from '@/messages/types';
 
-import { getMockFireModeSchema, MOCK_SUPPORTED_FIRE_MODES } from './mock-firemode-schemas';
+import { MOCK_SUPPORTED_FIRE_MODES } from './mock-firemode-schemas';
 import {
   loadProfileDatabase,
   saveProfileDatabase,
@@ -47,12 +46,11 @@ function defaultProfileId(compatibilityId: string, firemodeName: FireModeName): 
 
 function seedDefaultProfiles(compatibilityId: string): FcuProfileCatalog {
   const profiles: FcuProfile[] = MOCK_SUPPORTED_FIRE_MODES.map((firemodeName) => {
-    const schema = getMockFireModeSchema(firemodeName);
     return {
       id: defaultProfileId(compatibilityId, firemodeName),
       name: formatFireModeName(firemodeName),
       firemodeName,
-      config: defaultWireValuesFromSchema(schema),
+      config: {},
       isDefault: true,
     };
   });

@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,6 +9,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 
 import {
   assertUniqueProfileNameInProfiles,
@@ -25,6 +31,10 @@ import { useProfileFcuSync } from '@/hooks/use-profile-fcu-sync';
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
 import { formatFireModeName, type FireModeName } from '@/messages/types';
+import {
+  INVALID_FIELD_BACKGROUND_COLOR,
+  INVALID_FIELD_BORDER_COLOR,
+} from '@/components/form/invalid-field-styles';
 import { Screen } from '@/screens/components';
 
 function parseFcuPosition(value: string | undefined): number | null {
@@ -33,6 +43,77 @@ function parseFcuPosition(value: string | undefined): number | null {
   }
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+type ProfileNameInputProps = {
+  value: string;
+  onChangeText: (text: string) => void;
+  editable: boolean;
+  invalid: boolean;
+  shakeTrigger: number;
+  accessibilityLabel: string;
+  accessibilityHint?: string;
+  theme: ReturnType<typeof useTheme>['theme'];
+};
+
+function ProfileNameInput({
+  value,
+  onChangeText,
+  editable,
+  invalid,
+  shakeTrigger,
+  accessibilityLabel,
+  accessibilityHint,
+  theme,
+}: ProfileNameInputProps) {
+  const shakeX = useSharedValue(0);
+
+  useEffect(() => {
+    if (!invalid || shakeTrigger === 0) {
+      return;
+    }
+    shakeX.value = withSequence(
+      withTiming(-10, { duration: 45 }),
+      withTiming(10, { duration: 45 }),
+      withTiming(-8, { duration: 45 }),
+      withTiming(8, { duration: 45 }),
+      withTiming(-4, { duration: 45 }),
+      withTiming(0, { duration: 45 }),
+    );
+  }, [invalid, shakeTrigger, shakeX]);
+
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        shakeStyle,
+        styles.inputWrap,
+        {
+          borderColor: invalid ? INVALID_FIELD_BORDER_COLOR : theme.colors.border,
+          borderWidth: invalid ? 2 : StyleSheet.hairlineWidth,
+          backgroundColor: invalid
+            ? INVALID_FIELD_BACKGROUND_COLOR
+            : theme.colors.background,
+        },
+      ]}
+    >
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder="Profile name"
+        placeholderTextColor={theme.colors.muted}
+        autoCapitalize="words"
+        autoCorrect={false}
+        editable={editable}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint={accessibilityHint}
+        style={[styles.input, { color: theme.colors.foreground }]}
+      />
+    </Animated.View>
+  );
 }
 
 export function NewProfileNameScreen() {
@@ -58,8 +139,9 @@ export function NewProfileNameScreen() {
   const [storedCompatibilityId, setStoredCompatibilityId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profileName, setProfileName] = useState('');
-  const [nameError, setNameError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [nameShakeTrigger, setNameShakeTrigger] = useState(0);
+  const creationCommittedRef = useRef(false);
 
   const compatibilityId = useFcuProfileCatalogKey(peripheralId, storedCompatibilityId);
   const fcuProfiles = useFcuProfiles(compatibilityId);
@@ -130,18 +212,18 @@ export function NewProfileNameScreen() {
     [fcuProfiles.profiles],
   );
 
-  const nameTaken = useMemo(() => {
-    if (!profileName.trim()) {
-      return false;
-    }
-    return isProfileNameTakenInProfiles(fcuProfiles.profiles, profileName);
-  }, [fcuProfiles.profiles, profileName]);
+  const nameValidationError = useMemo(
+    () => validateName(profileName),
+    [profileName, validateName],
+  );
+  const showNameInvalid =
+    nameValidationError !== null &&
+    !creating &&
+    !creationCommittedRef.current;
 
   const handleCreate = useCallback(async () => {
     const trimmedName = profileName.trim();
-    const error = validateName(trimmedName);
-    if (error || fcuPosition === null || !firemodeName || !compatibilityId) {
-      setNameError(error);
+    if (fcuPosition === null || !firemodeName || !compatibilityId) {
       return;
     }
 
@@ -160,6 +242,7 @@ export function NewProfileNameScreen() {
         firemodeName,
         defaultConfig,
       );
+      creationCommittedRef.current = true;
 
       const replica = await get(replicaId);
       const existing = replica ? parseSelectorPositionProfiles(replica) : [];
@@ -172,6 +255,7 @@ export function NewProfileNameScreen() {
 
       const bleError = await pushProfileAtPosition(fcuPosition, created.id);
       if (bleError !== null) {
+        setCreating(false);
         return;
       }
 
@@ -188,9 +272,12 @@ export function NewProfileNameScreen() {
         },
       });
     } catch (err: unknown) {
+      creationCommittedRef.current = false;
       setLoadError(err instanceof Error ? err.message : String(err));
     } finally {
-      setCreating(false);
+      if (!creationCommittedRef.current) {
+        setCreating(false);
+      }
     }
   }, [
     fcuPosition,
@@ -204,7 +291,6 @@ export function NewProfileNameScreen() {
     replicaId,
     router,
     update,
-    validateName,
   ]);
 
   const canCreate =
@@ -215,7 +301,23 @@ export function NewProfileNameScreen() {
     firemodeName !== null &&
     fcuPosition !== null &&
     compatibilityId !== null &&
-    validateName(profileName) === null;
+    nameValidationError === null;
+
+  const createButtonDisabled =
+    creating || Boolean(loadError) || Boolean(syncError) || fireModeSchema === null;
+
+  const handleCreatePress = useCallback(() => {
+    if (createButtonDisabled) {
+      return;
+    }
+    if (nameValidationError !== null && !creationCommittedRef.current) {
+      setNameShakeTrigger((count) => count + 1);
+      return;
+    }
+    if (canCreate) {
+      void handleCreate();
+    }
+  }, [canCreate, createButtonDisabled, handleCreate, nameValidationError]);
 
   return (
     <Screen style={styles.screen}>
@@ -248,44 +350,25 @@ export function NewProfileNameScreen() {
       ) : null}
 
       <Text style={[styles.label, { color: theme.colors.muted }]}>Name</Text>
-      <TextInput
+      <ProfileNameInput
         value={profileName}
-        onChangeText={(text) => {
-          setProfileName(text);
-          setNameError(null);
-        }}
-        onBlur={() => setNameError(validateName(profileName))}
-        placeholder="Profile name"
-        placeholderTextColor={theme.colors.muted}
-        autoCapitalize="words"
-        autoCorrect={false}
+        onChangeText={setProfileName}
         editable={!creating}
-        style={[
-          styles.input,
-          {
-            color: theme.colors.foreground,
-            borderColor: nameError || nameTaken ? theme.colors.primary : theme.colors.border,
-            backgroundColor: theme.colors.background,
-          },
-        ]}
+        invalid={showNameInvalid}
+        shakeTrigger={nameShakeTrigger}
+        accessibilityLabel="Profile name"
+        accessibilityHint={showNameInvalid ? (nameValidationError ?? undefined) : undefined}
+        theme={theme}
       />
-      {nameError ? (
-        <Text style={[styles.fieldError, { color: theme.colors.primary }]}>{nameError}</Text>
-      ) : nameTaken ? (
-        <Text style={[styles.fieldError, { color: theme.colors.primary }]}>
-          A profile with this name already exists
-        </Text>
-      ) : (
-        <Text style={[styles.hint, { color: theme.colors.muted }]}>
-          Must be unique among all profiles, including defaults. You can configure fields on the
-          next screen.
-        </Text>
-      )}
+      <Text style={[styles.hint, { color: theme.colors.muted }]}>
+        Must be unique among all profiles, including defaults. You can configure fields on the next
+        screen.
+      </Text>
 
       <View style={styles.footer}>
         <Pressable
-          onPress={() => void handleCreate()}
-          disabled={!canCreate}
+          onPress={handleCreatePress}
+          disabled={createButtonDisabled}
           style={({ pressed }) => [
             styles.primaryButton,
             {
@@ -340,9 +423,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 8,
   },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
+  inputWrap: {
     borderRadius: 10,
+    justifyContent: 'center',
+  },
+  input: {
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
@@ -351,10 +436,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 8,
     lineHeight: 18,
-  },
-  fieldError: {
-    fontSize: 13,
-    marginTop: 8,
   },
   errorText: {
     fontSize: 14,

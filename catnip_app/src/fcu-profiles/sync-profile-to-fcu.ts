@@ -60,11 +60,12 @@ export async function syncProfileToFcu(
   fcuPosition: number,
   profile: FcuProfile,
 ): Promise<UpdateFireModeConfigErrorType | null> {
+  const profileConfig = profile.isDefault ? {} : profile.config;
   return syncFireModeConfigToFcu(
     client,
     fcuPosition,
     profile.firemodeName,
-    profile.config,
+    profileConfig,
   );
 }
 

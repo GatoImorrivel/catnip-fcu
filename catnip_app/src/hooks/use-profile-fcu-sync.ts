@@ -82,7 +82,8 @@ export function useProfileFcuSync({
 
       setSyncError(null);
       try {
-        const result = await save(fcuPosition, profile.firemodeName, profile.config);
+        const configOverrides = profile.isDefault ? {} : profile.config;
+        const result = await save(fcuPosition, profile.firemodeName, configOverrides);
         if (result !== null) {
           setSyncError(formatUpdateFireModeConfigError(result));
         }

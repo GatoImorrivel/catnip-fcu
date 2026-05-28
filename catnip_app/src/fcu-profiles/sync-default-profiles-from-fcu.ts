@@ -1,3 +1,5 @@
+import type { CatnipBleClient } from '@/lib/catnip-ble-client';
+import { defaultWireValuesFromSchema } from '@/lib/firemode-config-utils';
 import {
   acquireFcuSession,
   releaseFcuSession,
@@ -8,9 +10,25 @@ import type { SelectorPositionMappingEntry } from '@/replicas/selector-mapping';
 import type { SelectorPositionProfileAssignment } from './types';
 import { getDefaultProfileId, getOrCreateCatalog, setDefaultProfileConfig } from './store';
 
+/** Persists FCU schema factory defaults for every supported fire mode. */
+export async function refreshDefaultProfileConfigsFromFcu(
+  client: CatnipBleClient,
+  compatibilityId: string,
+): Promise<void> {
+  const firemodes = await client.getSupportedFireModes();
+  for (const firemodeName of firemodes) {
+    const schema = await client.getFireModeConfigFields(firemodeName);
+    await setDefaultProfileConfig(
+      compatibilityId,
+      firemodeName,
+      defaultWireValuesFromSchema(schema),
+    );
+  }
+}
+
 /**
- * Reads fire mode + config from the FCU for each mapped hardware position, updates
- * the default profiles for that compatibility family, and returns position assignments.
+ * Refreshes default profile configs from FCU schema, reads fire mode per mapped position,
+ * and returns position assignments.
  */
 export async function loadDefaultProfilesFromFcu(
   peripheralId: string,
@@ -26,15 +44,11 @@ export async function loadDefaultProfilesFromFcu(
 
   try {
     const client = await waitForFcuSessionReady(peripheralId);
-    const assignments: SelectorPositionProfileAssignment[] = [];
+    await refreshDefaultProfileConfigsFromFcu(client, compatibilityId);
 
+    const assignments: SelectorPositionProfileAssignment[] = [];
     for (const entry of mapping) {
       const positionConfig = await client.getFireModeForPosition(entry.fcuPosition);
-      await setDefaultProfileConfig(
-        compatibilityId,
-        positionConfig.firemode_name,
-        positionConfig.config,
-      );
       assignments.push({
         fcuPosition: entry.fcuPosition,
         profileId: getDefaultProfileId(compatibilityId, positionConfig.firemode_name),

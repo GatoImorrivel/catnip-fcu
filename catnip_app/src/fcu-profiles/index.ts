@@ -19,7 +19,10 @@ export {
   setDefaultProfileConfig,
   updateProfile,
 } from './store';
-export { loadDefaultProfilesFromFcu } from './sync-default-profiles-from-fcu';
+export {
+  loadDefaultProfilesFromFcu,
+  refreshDefaultProfileConfigsFromFcu,
+} from './sync-default-profiles-from-fcu';
 export {
   formatUpdateFireModeConfigError,
   resolveProfileById,

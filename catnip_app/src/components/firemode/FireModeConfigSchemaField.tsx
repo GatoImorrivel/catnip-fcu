@@ -7,15 +7,16 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import {
+  INVALID_FIELD_BACKGROUND_COLOR,
+  INVALID_FIELD_BORDER_COLOR,
+} from '@/components/form/invalid-field-styles';
 import { useTheme } from '@/hooks/use-theme';
 import {
   formatConfigUnit,
   isNumericWireValueValid,
 } from '@/lib/firemode-config-utils';
 import type { FireModeConfigSchemaEntry, FireModeConfigSchemaNumeric } from '@/messages/types';
-
-const INVALID_BORDER_COLOR = '#ff2d2d';
-const INVALID_BACKGROUND_COLOR = 'rgba(255, 45, 45, 0.12)';
 
 type FireModeConfigSchemaFieldProps = {
   fieldKey?: string;
@@ -77,7 +78,7 @@ function NumericFireModeConfigSchemaField({
         <Text
           style={[
             styles.range,
-            { color: invalid ? INVALID_BORDER_COLOR : theme.colors.muted },
+            { color: invalid ? INVALID_FIELD_BORDER_COLOR : theme.colors.muted },
           ]}
         >
           {rangeText}
@@ -88,9 +89,11 @@ function NumericFireModeConfigSchemaField({
           shakeStyle,
           styles.inputWrap,
           {
-            borderColor: invalid ? INVALID_BORDER_COLOR : theme.colors.border,
+            borderColor: invalid ? INVALID_FIELD_BORDER_COLOR : theme.colors.border,
             borderWidth: invalid ? 2 : StyleSheet.hairlineWidth,
-            backgroundColor: invalid ? INVALID_BACKGROUND_COLOR : theme.colors.background,
+            backgroundColor: invalid
+              ? INVALID_FIELD_BACKGROUND_COLOR
+              : theme.colors.background,
           },
         ]}
       >
