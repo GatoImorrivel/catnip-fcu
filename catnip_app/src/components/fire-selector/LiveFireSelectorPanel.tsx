@@ -2,8 +2,13 @@ import type { ReactNode } from 'react';
 import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import {
+  BluetoothOffBlock,
+  bluetoothOffBlockAction,
+} from '@/components/BluetoothOffBlock';
 import { AnimatedFireSelectorGraphic } from '@/components/fire-selector/AnimatedFireSelectorGraphic';
 import { FireSelectorUnmappedGraphic } from '@/components/fire-selector/FireSelectorUnmappedGraphic';
+import { useBluetoothGate } from '@/hooks/use-bluetooth-gate';
 import { useLiveSelectorRotation } from '@/hooks/use-live-selector-rotation';
 import { useTheme } from '@/hooks/use-theme';
 import { getFireSelectorAspect } from '@/replicas/fire-selector-replica-config';
@@ -87,6 +92,8 @@ export function LiveFireSelectorPanel({
             ? 200
             : 160;
 
+  const bluetoothGate = useBluetoothGate({ promptOnFocus: true });
+
   const {
     rotationDeg,
     slotLabel,
@@ -106,6 +113,25 @@ export function LiveFireSelectorPanel({
   useEffect(() => {
     onPositionContextChange?.({ fcuPosition, isUnmapped, ready });
   }, [fcuPosition, isUnmapped, onPositionContextChange, ready]);
+
+  if (bluetoothGate.blocked) {
+    const message =
+      bluetoothGate.bluetoothUnavailableMessage ?? 'Bluetooth is not available.';
+    return (
+      <View style={styles.centered}>
+        <BluetoothOffBlock
+          message={message}
+          subtitle={bluetoothGate.bluetoothOffSubtitle}
+          actionLabel={bluetoothGate.bluetoothActionLabel}
+          onAction={bluetoothOffBlockAction(
+            bluetoothGate.bluetoothState,
+            bluetoothGate.requestEnable,
+            bluetoothGate.openSettings,
+          )}
+        />
+      </View>
+    );
+  }
 
   if (connectionStatus === 'connecting' || (!ready && connectionStatus !== 'error')) {
     return (

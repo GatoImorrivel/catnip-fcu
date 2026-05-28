@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import { BleState } from 'react-native-ble-manager';
 
+import { getBluetoothUnavailableMessage } from '@/lib/bluetooth-messages';
+import { refreshBluetoothState } from '@/lib/request-bluetooth-enabled';
 import { BleManager, ensureBleManagerStarted } from '../lib/ble-manager';
 
-export function getBluetoothUnavailableMessage(state: BleState): string | null {
-  if (state === BleState.Unauthorized) {
-    return 'Bluetooth permission denied. Enable Bluetooth access for this app in Settings.';
-  }
-  if (state === BleState.Off) {
-    return 'Turn on Bluetooth to connect to the FCU.';
-  }
-  return null;
-}
+export { getBluetoothUnavailableMessage } from '@/lib/bluetooth-messages';
+export {
+  getBluetoothActionLabel,
+  getBluetoothOffSubtitle,
+} from '@/lib/bluetooth-messages';
 
 export type UseBleManagerResult = {
   ready: boolean;
@@ -36,6 +35,19 @@ export function useBleManager(): UseBleManagerResult {
       }
     });
 
+    const onAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState !== 'active' || !active) {
+        return;
+      }
+      void refreshBluetoothState().then((state) => {
+        if (active) {
+          setBluetoothState(state);
+        }
+      });
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', onAppStateChange);
+
     ensureBleManagerStarted()
       .then(() => BleManager.checkState())
       .then((state) => {
@@ -54,6 +66,7 @@ export function useBleManager(): UseBleManagerResult {
     return () => {
       active = false;
       stateSubscription.remove();
+      appStateSubscription.remove();
     };
   }, []);
 

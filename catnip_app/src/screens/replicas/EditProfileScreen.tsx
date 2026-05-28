@@ -11,8 +11,13 @@ import {
   View,
 } from 'react-native';
 
+import {
+  BluetoothOffBlock,
+  bluetoothOffBlockAction,
+} from '@/components/BluetoothOffBlock';
 import { ConfirmModal } from '@/components/fcu-profiles';
 import { FireModeConfigSchemaForm } from '@/components/firemode';
+import { useBluetoothGate } from '@/hooks/use-bluetooth-gate';
 import { getProfileDisplayName, type FcuProfileId } from '@/fcu-profiles';
 import {
   buildWireConfigForFcu,
@@ -69,6 +74,7 @@ export function EditProfileScreen() {
   const allowLeaveRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const bluetoothGate = useBluetoothGate({ promptOnFocus: true });
   const compatibilityId = useFcuProfileCatalogKey(peripheralId, storedCompatibilityId);
   const fcuProfiles = useFcuProfiles(compatibilityId);
   const { pushConfigAtPosition, syncError, syncing } = useProfileFcuSync({
@@ -381,11 +387,11 @@ export function EditProfileScreen() {
     !profile?.isDefault;
   const fcuSyncing = syncing && !saving && !discarding;
   const loadingMessage =
-    connectionStatus === 'connecting'
+    !bluetoothGate.blocked && connectionStatus === 'connecting'
       ? 'Connecting to FCU…'
-      : schemaLoading
+      : !bluetoothGate.blocked && schemaLoading
         ? 'Loading config fields from FCU…'
-        : valuesLoading
+        : !bluetoothGate.blocked && valuesLoading
           ? 'Loading profile values…'
           : null;
 
@@ -462,7 +468,22 @@ export function EditProfileScreen() {
         </Text>
       ) : null}
 
-      {displayError ? (
+      {bluetoothGate.blocked ? (
+        <BluetoothOffBlock
+          message={
+            bluetoothGate.bluetoothUnavailableMessage ?? 'Bluetooth is not available.'
+          }
+          subtitle={bluetoothGate.bluetoothOffSubtitle}
+          actionLabel={bluetoothGate.bluetoothActionLabel}
+          onAction={bluetoothOffBlockAction(
+            bluetoothGate.bluetoothState,
+            bluetoothGate.requestEnable,
+            bluetoothGate.openSettings,
+          )}
+        />
+      ) : null}
+
+      {displayError && !bluetoothGate.blocked ? (
         <View style={styles.statusBlock}>
           <Text style={[styles.errorText, { color: theme.colors.error }]}>{displayError}</Text>
           {schemaError && peripheralId ? (

@@ -11,6 +11,10 @@ import {
   subscribeFcuSessionEvents,
   type FcuSessionStatus,
 } from '@/lib/fcu-connection-session';
+import {
+  getBluetoothEnableErrorMessage,
+  requestBluetoothEnabled,
+} from '@/lib/request-bluetooth-enabled';
 import type { FCUToHostEvent } from '@/messages/types';
 import { useBleManager } from './use-ble-manager';
 
@@ -35,6 +39,7 @@ export type UseCatnipFcuResult = {
   ready: boolean;
   isBluetoothOn: boolean;
   bleReady: boolean;
+  bluetoothBlocked: boolean;
   lastEvent: FCUToHostEvent | null;
   /** Manually reconnect after an error or disconnect. */
   reconnect: () => void;
@@ -58,9 +63,12 @@ export function useCatnipFcu(
   const [lastEvent, setLastEvent] = useState<FCUToHostEvent | null>(null);
   const [connectAttempt, setConnectAttempt] = useState(0);
   const [characteristicsError, setCharacteristicsError] = useState<string | null>(null);
+  const [enableError, setEnableError] = useState<string | null>(null);
 
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
+
+  const bluetoothBlocked = bleReady && !isBluetoothOn;
 
   const enabled =
     (enabledOption ?? true) &&
@@ -70,12 +78,27 @@ export function useCatnipFcu(
     isBluetoothOn;
 
   const reconnect = useCallback(() => {
-    setConnectAttempt((n) => n + 1);
+    void (async () => {
+      const result = await requestBluetoothEnabled();
+      const message = getBluetoothEnableErrorMessage(result);
+      setEnableError(message);
+      if (result !== 'on') {
+        return;
+      }
+      setConnectAttempt((n) => n + 1);
+    })();
   }, []);
 
   useEffect(() => {
     setConnectAttempt(0);
+    setEnableError(null);
   }, [peripheralId]);
+
+  useEffect(() => {
+    if (isBluetoothOn) {
+      setEnableError(null);
+    }
+  }, [isBluetoothOn]);
 
   useEffect(() => {
     if (!enabled || !peripheralId) {
@@ -127,10 +150,11 @@ export function useCatnipFcu(
   }, [connectAttempt, enabled, peripheralId]);
 
   const displayError =
+    (bluetoothBlocked ? bluetoothUnavailableMessage : null) ??
+    enableError ??
     error ??
     characteristicsError ??
-    managerError ??
-    (bleReady && !isBluetoothOn ? bluetoothUnavailableMessage : null);
+    managerError;
 
   return {
     client,
@@ -139,6 +163,7 @@ export function useCatnipFcu(
     ready: status === 'ready' && client !== null,
     isBluetoothOn,
     bleReady,
+    bluetoothBlocked,
     lastEvent,
     reconnect,
   };

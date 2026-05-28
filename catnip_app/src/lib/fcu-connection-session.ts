@@ -1,5 +1,11 @@
 import type { EventSubscription } from 'react-native';
+import { BleState } from 'react-native-ble-manager';
 
+import { getBluetoothUnavailableMessage } from '@/lib/bluetooth-messages';
+import {
+  getBluetoothState,
+  requestBluetoothEnabled,
+} from '@/lib/request-bluetooth-enabled';
 import type { Characteristics, FCUToHostEvent } from '@/messages/types';
 
 import { CatnipBleClient } from './catnip-ble-client';
@@ -101,6 +107,18 @@ async function openConnection(session: FcuSession, generation: number): Promise<
 
   try {
     await ensureBleManagerStarted();
+    const btState = await getBluetoothState();
+    if (btState !== BleState.On) {
+      if (generation !== session.generation) {
+        return;
+      }
+      session.status = 'error';
+      session.client = null;
+      session.error =
+        getBluetoothUnavailableMessage(btState) ?? 'Bluetooth is not available';
+      return;
+    }
+
     await BleManager.connect(peripheralId);
     if (generation !== session.generation) {
       await BleManager.disconnect(peripheralId).catch(() => undefined);
@@ -320,6 +338,16 @@ export function reconnectFcuSession(peripheralId: string): void {
   }
 
   void (async () => {
+    const enableResult = await requestBluetoothEnabled();
+    if (enableResult !== 'on') {
+      session.status = 'error';
+      session.error =
+        getBluetoothUnavailableMessage(await getBluetoothState()) ??
+        'Turn on Bluetooth to connect to the FCU.';
+      emit(session);
+      return;
+    }
+
     await closeConnection(session, { forceDisconnect: true });
     if (session.refCount === 0) {
       return;
@@ -418,6 +446,14 @@ export function getReplicaCreationPeripheralId(): string | null {
  * Caller should stop scanning before invoking.
  */
 export async function prepareReplicaCreationFcu(peripheralId: string): Promise<Characteristics> {
+  const enableResult = await requestBluetoothEnabled();
+  if (enableResult !== 'on') {
+    throw new Error(
+      getBluetoothUnavailableMessage(await getBluetoothState()) ??
+        'Turn on Bluetooth to connect to the FCU.',
+    );
+  }
+
   retainReplicaCreationSession(peripheralId);
   await waitForFcuSessionReady(peripheralId);
   const characteristics = await ensureFcuSessionCharacteristics(peripheralId);

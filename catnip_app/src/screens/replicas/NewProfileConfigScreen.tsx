@@ -10,7 +10,12 @@ import {
   View,
 } from 'react-native';
 
+import {
+  BluetoothOffBlock,
+  bluetoothOffBlockAction,
+} from '@/components/BluetoothOffBlock';
 import { FireModeConfigSchemaForm, defaultWireValuesFromSchema } from '@/components/firemode';
+import { useBluetoothGate } from '@/hooks/use-bluetooth-gate';
 import {
   buildWireConfigForFcu,
   isWireConfigValid,
@@ -73,6 +78,7 @@ export function NewProfileConfigScreen() {
   const [creating, setCreating] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const bluetoothGate = useBluetoothGate({ promptOnFocus: true });
   const compatibilityId = useFcuProfileCatalogKey(peripheralId, storedCompatibilityId);
   const fcuProfiles = useFcuProfiles(compatibilityId);
   const { pushProfileAtPosition, syncError } = useProfileFcuSync({
@@ -218,9 +224,9 @@ export function NewProfileConfigScreen() {
     !displayError;
 
   const loadingMessage =
-    connectionStatus === 'connecting'
+    !bluetoothGate.blocked && connectionStatus === 'connecting'
       ? 'Connecting to FCU…'
-      : schemaLoading
+      : !bluetoothGate.blocked && schemaLoading
         ? 'Loading config fields from FCU…'
         : null;
 
@@ -247,7 +253,22 @@ export function NewProfileConfigScreen() {
         </Text>
       ) : null}
 
-      {displayError ? (
+      {bluetoothGate.blocked ? (
+        <BluetoothOffBlock
+          message={
+            bluetoothGate.bluetoothUnavailableMessage ?? 'Bluetooth is not available.'
+          }
+          subtitle={bluetoothGate.bluetoothOffSubtitle}
+          actionLabel={bluetoothGate.bluetoothActionLabel}
+          onAction={bluetoothOffBlockAction(
+            bluetoothGate.bluetoothState,
+            bluetoothGate.requestEnable,
+            bluetoothGate.openSettings,
+          )}
+        />
+      ) : null}
+
+      {displayError && !bluetoothGate.blocked ? (
         <View style={styles.statusBlock}>
           <Text style={[styles.errorText, { color: theme.colors.error }]}>{displayError}</Text>
           {schemaError && peripheralId ? (

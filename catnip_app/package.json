@@ -32,7 +32,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test": "node --test scripts/test-fire-selector-graphic-utils.mjs scripts/test-characteristics-codec.mjs scripts/test-profile-persistence.mjs scripts/test-selector-mapping.mjs scripts/test-postcard-codec-guards.mjs scripts/test-compatibility-migration.mjs"
+    "test": "node --test scripts/test-fire-selector-graphic-utils.mjs scripts/test-characteristics-codec.mjs scripts/test-profile-persistence.mjs scripts/test-selector-mapping.mjs scripts/test-postcard-codec-guards.mjs scripts/test-compatibility-migration.mjs scripts/test-bluetooth-gate.mjs"
   },
   "private": true
 }

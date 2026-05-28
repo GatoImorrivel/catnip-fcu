@@ -28,6 +28,7 @@ export type UseFcuRequestResult<T> = {
   client: CatnipBleClient | null;
   connectionStatus: CatnipFcuStatus;
   ready: boolean;
+  bluetoothBlocked: boolean;
   reconnect: () => void;
 };
 
@@ -49,6 +50,7 @@ export function useFcuRequest<T>(
     status: connectionStatus,
     error: connectionError,
     ready,
+    bluetoothBlocked,
     reconnect,
   } = useCatnipFcu(peripheralId, fcuOptions);
 
@@ -110,9 +112,10 @@ export function useFcuRequest<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refetchDeps is intentional
   }, [client, fetchEnabled, peripheralId, ready, runFetch, ...refetchDeps]);
 
-  const isConnecting = connectionStatus === 'connecting';
+  const isConnecting = !bluetoothBlocked && connectionStatus === 'connecting';
   const hasData = data !== null;
-  const isInitialLoading = isConnecting || (loading && !hasData);
+  const isInitialLoading =
+    !bluetoothBlocked && (isConnecting || (loading && !hasData));
   const isRefetching = loading && hasData;
 
   return {
@@ -124,6 +127,7 @@ export function useFcuRequest<T>(
     client,
     connectionStatus,
     ready,
+    bluetoothBlocked,
     reconnect,
   };
 }

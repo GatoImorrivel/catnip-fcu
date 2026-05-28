@@ -3,9 +3,14 @@ import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
+  BluetoothOffBlock,
+  bluetoothOffBlockAction,
+} from '@/components/BluetoothOffBlock';
+import {
   FireSelectorMappingCarousel,
   FireSelectorSlotPicker,
 } from '@/components/fire-selector';
+import { useBluetoothGate } from '@/hooks/use-bluetooth-gate';
 import { useFireSelectorAssign } from '@/hooks/use-fire-selector-assign';
 import { useFcuCharacteristics } from '@/hooks/use-fcu-characteristics';
 import { useTheme } from '@/hooks/use-theme';
@@ -92,6 +97,8 @@ export function FireSelectorMappingStep({
   const { theme } = useTheme();
   const fillPickLayout = layout === 'fill';
 
+  const bluetoothGate = useBluetoothGate({ promptOnFocus: !fcuBinding });
+
   const fetchedFcu = useFcuCharacteristics(fcuBinding ? null : peripheralId);
 
   const characteristics = fcuBinding?.characteristics ?? fetchedFcu.characteristics;
@@ -104,6 +111,7 @@ export function FireSelectorMappingStep({
 
   const hasCharacteristics = characteristics != null;
   const fcuNumPositions = characteristics?.num_fire_positions ?? 0;
+  const bluetoothBlocked = fcuBinding ? false : fetchedFcu.bluetoothBlocked;
 
   useEffect(() => {
     if (fcuNumPositions > 0) {
@@ -158,16 +166,34 @@ export function FireSelectorMappingStep({
   // Session can briefly sit in `idle` between teardown and `connecting`; treat that as
   // in-progress so we do not flash the retry UI during a normal connect cycle.
   const showConnecting =
+    !bluetoothBlocked &&
     !hasCharacteristics &&
     connectionStatus !== 'error' &&
     !charsError &&
-    (connectionStatus === 'connecting' ||
-      charsLoading ||
-      connectionStatus === 'idle');
+    (connectionStatus === 'connecting' || charsLoading);
 
   const showConnectionError =
     !hasCharacteristics &&
     (connectionStatus === 'error' || (charsError != null && !showConnecting));
+
+  if (bluetoothBlocked) {
+    const message =
+      bluetoothGate.bluetoothUnavailableMessage ?? 'Bluetooth is not available.';
+    return (
+      <View style={[styles.centered, fillPickLayout && styles.centeredFill]}>
+        <BluetoothOffBlock
+          message={message}
+          subtitle={bluetoothGate.bluetoothOffSubtitle}
+          actionLabel={bluetoothGate.bluetoothActionLabel}
+          onAction={bluetoothOffBlockAction(
+            bluetoothGate.bluetoothState,
+            bluetoothGate.requestEnable,
+            bluetoothGate.openSettings,
+          )}
+        />
+      </View>
+    );
+  }
 
   if (showConnecting) {
     return (

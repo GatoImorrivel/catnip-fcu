@@ -4,16 +4,18 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Linking,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { BleState } from 'react-native-ble-manager';
 import type { Peripheral } from 'react-native-ble-manager';
 
-import { useBleManager } from '@/hooks/use-ble-manager';
+import {
+  BluetoothOffBlock,
+  bluetoothOffBlockAction,
+} from '@/components/BluetoothOffBlock';
+import { useBluetoothGate } from '@/hooks/use-bluetooth-gate';
 import { useBleScan } from '@/hooks/use-ble-scan';
 import { useTheme } from '@/hooks/use-theme';
 import { getPeripheralLabel } from '@/lib/ble-peripheral';
@@ -26,7 +28,7 @@ import { Screen } from '@/screens/components';
 export function SelectCatnipFcuScreen() {
   const router = useRouter();
   const { theme } = useTheme();
-  const { bluetoothState, isBluetoothUnauthorized } = useBleManager();
+  const bluetoothGate = useBluetoothGate({ promptOnFocus: true });
   const { devices, isScanning, error, ready, isBluetoothOn, startScan, stopScan } =
     useBleScan();
   const [connectingId, setConnectingId] = useState<string | null>(null);
@@ -73,27 +75,22 @@ export function SelectCatnipFcuScreen() {
     [router, stopScan],
   );
 
-  const displayError =
-    connectError ??
-    error ??
-    (!isBluetoothOn && ready && bluetoothState === BleState.Unauthorized
-      ? 'Bluetooth permission denied. Enable access in Settings to scan.'
-      : !isBluetoothOn && ready
-        ? 'Turn on Bluetooth to scan.'
-        : null);
+  const displayError = connectError ?? error ?? bluetoothGate.enableError;
 
   const isConnecting = connectingId !== null;
 
   const handleRetryScan = useCallback(() => {
     setConnectError(null);
-    if (isBluetoothUnauthorized) {
-      void Linking.openSettings();
-      return;
-    }
-    if (ready && isBluetoothOn) {
-      void startScan().catch(() => undefined);
-    }
-  }, [isBluetoothOn, isBluetoothUnauthorized, ready, startScan]);
+    void (async () => {
+      const result = await bluetoothGate.requestEnable();
+      if (result !== 'on') {
+        return;
+      }
+      if (ready) {
+        void startScan().catch(() => undefined);
+      }
+    })();
+  }, [bluetoothGate, ready, startScan]);
 
   return (
     <Screen>
@@ -114,25 +111,38 @@ export function SelectCatnipFcuScreen() {
         Choose a nearby Catnip FCU to pair with this replica.
       </Text>
 
-      {displayError ? (
+      {bluetoothGate.blocked ? (
+        <BluetoothOffBlock
+          message={
+            bluetoothGate.bluetoothUnavailableMessage ?? 'Bluetooth is not available.'
+          }
+          subtitle={bluetoothGate.bluetoothOffSubtitle}
+          actionLabel={bluetoothGate.bluetoothActionLabel}
+          onAction={bluetoothOffBlockAction(
+            bluetoothGate.bluetoothState,
+            bluetoothGate.requestEnable,
+            bluetoothGate.openSettings,
+          )}
+        />
+      ) : null}
+
+      {displayError && !bluetoothGate.blocked ? (
         <View style={styles.errorBlock}>
           <Text style={[styles.error, { color: theme.colors.error }]}>{displayError}</Text>
           <Pressable
             onPress={handleRetryScan}
             accessibilityRole="button"
-            accessibilityLabel={
-              isBluetoothUnauthorized ? 'Open app settings' : 'Retry scan'
-            }
+            accessibilityLabel={bluetoothGate.bluetoothActionLabel}
             style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
           >
             <Text style={[styles.retryLabel, { color: theme.colors.foreground }]}>
-              {isBluetoothUnauthorized ? 'Open Settings' : 'Retry'}
+              {bluetoothGate.bluetoothActionLabel}
             </Text>
           </Pressable>
         </View>
       ) : null}
 
-      {isScanning || !ready ? (
+      {!bluetoothGate.blocked && (isScanning || !ready) ? (
         <View style={styles.scanningRow}>
           <ActivityIndicator color={theme.colors.primary} />
           <Text style={{ color: theme.colors.muted }}>
@@ -141,49 +151,51 @@ export function SelectCatnipFcuScreen() {
         </View>
       ) : null}
 
-      <FlatList
-        data={devices}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={devices.length === 0 ? styles.emptyList : undefined}
-        ListEmptyComponent={
-          !isScanning && ready ? (
-            <Text style={[styles.empty, { color: theme.colors.muted }]}>
-              No Catnip FCUs found yet.
-            </Text>
-          ) : null
-        }
-        renderItem={({ item }) => {
-          const busy = connectingId === item.id && isConnecting;
-
-          return (
-            <Pressable
-              onPress={() => void handleSelect(item)}
-              disabled={isConnecting}
-              style={({ pressed }) => [
-                styles.deviceRow,
-                {
-                  borderColor: theme.colors.border,
-                  backgroundColor: theme.colors.background,
-                  opacity: pressed || busy ? 0.7 : 1,
-                },
-              ]}
-            >
-              <Text style={[styles.deviceName, { color: theme.colors.foreground, flex: 1 }]}>
-                {getPeripheralLabel(item)}
+      {!bluetoothGate.blocked ? (
+        <FlatList
+          data={devices}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={devices.length === 0 ? styles.emptyList : undefined}
+          ListEmptyComponent={
+            !isScanning && ready ? (
+              <Text style={[styles.empty, { color: theme.colors.muted }]}>
+                No Catnip FCUs found yet.
               </Text>
-              {busy ? (
-                <ActivityIndicator color={theme.colors.primary} />
-              ) : (
-                <MaterialIcons
-                  name="chevron-right"
-                  size={24}
-                  color={theme.colors.muted}
-                />
-              )}
-            </Pressable>
-          );
-        }}
-      />
+            ) : null
+          }
+          renderItem={({ item }) => {
+            const busy = connectingId === item.id && isConnecting;
+
+            return (
+              <Pressable
+                onPress={() => void handleSelect(item)}
+                disabled={isConnecting}
+                style={({ pressed }) => [
+                  styles.deviceRow,
+                  {
+                    borderColor: theme.colors.border,
+                    backgroundColor: theme.colors.background,
+                    opacity: pressed || busy ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Text style={[styles.deviceName, { color: theme.colors.foreground, flex: 1 }]}>
+                  {getPeripheralLabel(item)}
+                </Text>
+                {busy ? (
+                  <ActivityIndicator color={theme.colors.primary} />
+                ) : (
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={24}
+                    color={theme.colors.muted}
+                  />
+                )}
+              </Pressable>
+            );
+          }}
+        />
+      ) : null}
     </Screen>
   );
 }

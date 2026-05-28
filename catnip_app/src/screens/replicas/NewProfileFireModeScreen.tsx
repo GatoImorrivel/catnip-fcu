@@ -10,6 +10,11 @@ import {
   View,
 } from 'react-native';
 
+import {
+  BluetoothOffBlock,
+  bluetoothOffBlockAction,
+} from '@/components/BluetoothOffBlock';
+import { useBluetoothGate } from '@/hooks/use-bluetooth-gate';
 import { useFcuSupportedFireModes } from '@/hooks/use-fcu-fire-mode';
 import { useReplicas } from '@/hooks/use-replicas';
 import { useTheme } from '@/hooks/use-theme';
@@ -31,6 +36,7 @@ export function NewProfileFireModeScreen() {
   );
 
   const { get } = useReplicas();
+  const bluetoothGate = useBluetoothGate({ promptOnFocus: true });
   const [peripheralId, setPeripheralId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -99,9 +105,9 @@ export function NewProfileFireModeScreen() {
   );
 
   const connectionMessage =
-    connectionStatus === 'connecting'
+    !bluetoothGate.blocked && connectionStatus === 'connecting'
       ? 'Connecting to FCU…'
-      : loading
+      : !bluetoothGate.blocked && loading
         ? 'Loading fire modes…'
         : null;
 
@@ -127,7 +133,22 @@ export function NewProfileFireModeScreen() {
         Choose a fire mode for this profile.
       </Text>
 
-      {listError ? (
+      {bluetoothGate.blocked ? (
+        <BluetoothOffBlock
+          message={
+            bluetoothGate.bluetoothUnavailableMessage ?? 'Bluetooth is not available.'
+          }
+          subtitle={bluetoothGate.bluetoothOffSubtitle}
+          actionLabel={bluetoothGate.bluetoothActionLabel}
+          onAction={bluetoothOffBlockAction(
+            bluetoothGate.bluetoothState,
+            bluetoothGate.requestEnable,
+            bluetoothGate.openSettings,
+          )}
+        />
+      ) : null}
+
+      {listError && !bluetoothGate.blocked ? (
         <View style={styles.statusBlock}>
           <Text style={[styles.errorText, { color: theme.colors.error }]}>{listError}</Text>
           {modesError && peripheralId ? (
